@@ -17,7 +17,7 @@
 ```bash
 git submodule update --init
 npm install
-./build.sh -p b -v 0.3.10
+./build.sh -p b -v 0.3.11
 ```
 
 构建结果位于 `build/browserExt`。在 Edge/Chrome 开发人员模式中加载该目录。
@@ -25,7 +25,7 @@ npm install
 调试构建：
 
 ```bash
-./build.sh -p b -v 0.3.10 -d
+./build.sh -p b -v 0.3.11 -d
 ```
 
 ## Zotero Bridge
@@ -52,9 +52,9 @@ Bridge 逻辑测试：
 node paperloop-zotero-bridge/test-paperloop.mjs
 ```
 
-0.3.10 发布前已通过：
+0.3.11 发布前已通过：
 
-- Connector 完整自动化：130/130；
+- Connector 完整自动化：131/131；
 - PDF/认证回退专项：16/16；
 - 正式包独立 Chromium HTML→PDF 烟雾测试；
 - 正式包、Edge 加载目录与构建目录 280 文件一致性检查。

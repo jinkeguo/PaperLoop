@@ -31,6 +31,10 @@ PaperLoop 侧栏常驻在论文旁边，网页仍可正常滚动。阅读过程�
 
 开启自动展开后，当 Zotero Translator 系统确认当前页面是论文页面时，PaperLoop 会自动打开。同一标签页切换到另一篇论文会刷新侧栏，不同标签页各自保存草稿。用户可以关闭自动展开，也可以随时最小化或彻底关闭侧栏。
 
+### 阅读侧栏可随时切换中文与英文
+
+使用 PaperLoop 标题栏中的 `EN` / `中` 按钮，可以立即切换整个侧栏，包括识别状态、Zotero 保存位置、思考输入区、收藏反馈与恢复提示。语言偏好保存在扩展本地，切换页面、重启浏览器或原位升级后仍会保留；切换语言不会改变当前论文、草稿或 Zotero 保存位置。
+
 ## 哪些能力来自 Zotero Connector
 
 PaperLoop 不替代 Zotero Connector 的文献提取能力，也不会根据页面视觉信息猜测残缺题录。
@@ -58,7 +62,7 @@ PaperLoop 不替代 Zotero Connector 的文献提取能力，也不会根据页�
 
 | 组件 | 版本 | 已验证环境 |
 |---|---:|---|
-| PaperLoop 浏览器扩展 | `0.3.10` | Microsoft Edge / Chromium，Manifest V3 |
+| PaperLoop 浏览器扩展 | `0.3.11` | Microsoft Edge / Chromium，Manifest V3 |
 | PaperLoop DOI Bridge | `0.1.19` | Zotero 7.0.x |
 
 从 [最新 Release](https://github.com/jinkeguo/PaperLoop/releases/latest) 下载相互匹配的两个文件，然后按照[安装与验收说明](docs/INSTALLATION.md)操作。

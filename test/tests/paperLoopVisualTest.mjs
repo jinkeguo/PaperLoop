@@ -16,6 +16,10 @@ describe('PaperLoop persistent reading sidebar', function() {
 	before(async function() {
 		await tab.init();
 		await tab.page.setViewport({width: 1280, height: 800});
+		await tab.run(async function() {
+			await browser.storage.local.set({'paperloop:language:v1': 'zh'});
+			return true;
+		});
 	});
 
 	after(async function() {
@@ -25,6 +29,9 @@ describe('PaperLoop persistent reading sidebar', function() {
 	it('keeps the host article scrollable and restores per-document drafts', async function() {
 		this.timeout(20000);
 		const initial = await tab.run(async function() {
+			window.__paperLoopDraftTestGetDocumentState =
+				Zotero.Connector_Browser.paperLoopGetDocumentState;
+			Zotero.Connector_Browser.paperLoopGetDocumentState = async () => null;
 			document.body.innerHTML = `
 				<main style="width:760px;margin:0 auto;font:18px/1.8 serif">
 					<h1>A realistic long research article</h1>
@@ -36,7 +43,7 @@ describe('PaperLoop persistent reading sidebar', function() {
 			};
 			await Zotero.PaperLoopSidebar.show({
 				open: true,
-				documentKey: 'https://example.com/paper-a',
+				documentKey: window.location.href,
 				title: 'A realistic long research article',
 				canSave: true,
 				translatorLabel: 'Embedded Metadata',
@@ -67,15 +74,29 @@ describe('PaperLoop persistent reading sidebar', function() {
 			return true;
 		});
 		await delay(400);
-		const closed = await tab.run(function() {
+		const beforeClose = await tab.run(async function() {
+			const current = Zotero.PaperLoopSidebar.debugState();
+			const key = `paperloop:draft:v1:${current.documentKey}`;
+			const stored = await browser.storage.local.get(key);
+			return {current, storedThought: stored[key] || ''};
+		});
+		assert.include(beforeClose.storedThought, '样本偏差');
+		const closed = await tab.run(async function() {
 			Zotero.PaperLoopSidebar.debugClickClose();
-			return Zotero.PaperLoopSidebar.status();
+			await new Promise(resolve => setTimeout(resolve, 50));
+			const key = `paperloop:draft:v1:${window.location.href}`;
+			const stored = await browser.storage.local.get(key);
+			return {
+				...Zotero.PaperLoopSidebar.status(),
+				storedThought: stored[key] || ''
+			};
 		});
 		assert.isFalse(closed.open, 'the visible close button must remove the sidebar');
+		assert.include(closed.storedThought, '样本偏差');
 		await tab.run(function() {
 			return Zotero.PaperLoopSidebar.show({
 				open: true,
-				documentKey: 'https://example.com/paper-a',
+				documentKey: window.location.href,
 				title: 'A realistic long research article',
 				canSave: true,
 				translatorLabel: 'Embedded Metadata',
@@ -100,11 +121,62 @@ describe('PaperLoop persistent reading sidebar', function() {
 			});
 		});
 		const switched = await tab.run(function() {
-			return Zotero.PaperLoopSidebar.debugState();
+			const result = Zotero.PaperLoopSidebar.debugState();
+			Zotero.Connector_Browser.paperLoopGetDocumentState =
+				window.__paperLoopDraftTestGetDocumentState;
+			delete window.__paperLoopDraftTestGetDocumentState;
+			return result;
 		});
 		assert.equal(switched.documentKey, 'https://example.com/paper-b');
 		assert.equal(switched.thought, '');
 		assert.isFalse(switched.canSave);
+	});
+
+	it('switches the whole sidebar language and preserves the active reading state', async function() {
+		const result = await tab.run(async function() {
+			await Zotero.PaperLoopSidebar.debugSetLanguage('zh');
+			await Zotero.PaperLoopSidebar.show({
+				open: true,
+				documentKey: 'https://example.com/bilingual-paper',
+				title: 'Bilingual Paper',
+				canSave: true,
+				translatorLabel: 'Embedded Metadata',
+				selectedTarget: {
+					targetID: 'C10',
+					name: '生物',
+					path: '我的文库 / 生物',
+					type: 'collection'
+				}
+			});
+			Zotero.PaperLoopSidebar.debugSetThought('Language switching must not lose this thought.');
+			const before = Zotero.PaperLoopSidebar.debugState();
+			Zotero.PaperLoopSidebar.debugClickLanguage();
+			await new Promise(resolve => setTimeout(resolve, 80));
+			const after = Zotero.PaperLoopSidebar.debugState();
+			const stored = await browser.storage.local.get('paperloop:language:v1');
+			return {before, after, stored: stored['paperloop:language:v1']};
+		});
+
+		assert.equal(result.before.language, 'zh');
+		assert.equal(result.before.languageButtonText, 'EN');
+		assert.equal(result.after.language, 'en');
+		assert.equal(result.after.languageButtonText, '中');
+		assert.equal(result.after.chooseText, 'Choose Zotero destination');
+		assert.equal(result.after.refreshText, 'Refresh Zotero');
+		assert.equal(result.after.autoLabelText, 'Open after paper detection');
+		assert.equal(result.after.thoughtLabelText, 'Reading thought');
+		assert.equal(result.after.saveText, 'Save to selected destination');
+		assert.include(result.after.status, 'Paper detected');
+		assert.equal(result.after.thought, result.before.thought);
+		assert.equal(result.after.selectedTargetID, result.before.selectedTargetID);
+		assert.equal(result.after.documentKey, result.before.documentKey);
+		assert.equal(result.after.left, result.before.left);
+		assert.equal(result.after.top, result.before.top);
+		assert.equal(result.stored, 'en');
+
+		await tab.run(function() {
+			return Zotero.PaperLoopSidebar.debugSetLanguage('zh');
+		});
 	});
 
 	it('drags within the viewport and resets safely to the right edge', async function() {

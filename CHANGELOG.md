@@ -1,5 +1,14 @@
 # Changelog
 
+## PaperLoop Connector 0.3.11 / DOI Bridge 0.1.19 — 2026-08-01
+
+- Added an `EN` / `中` title-bar control that switches the complete reading panel between English and Simplified Chinese.
+- Persisted the interface language across papers, tabs, browser restarts, and in-place extension upgrades.
+- Kept the active paper, thought draft, Zotero destination, panel position, and save state unchanged while switching languages.
+- Localized detection, destination selection, recovery, save, PDF backfill, and error feedback instead of translating only static buttons.
+- Made closing the panel flush the last confirmed draft immediately and strengthened draft-restoration coverage.
+- Passed the complete Connector regression suite: 131/131 tests.
+
 ## PaperLoop Connector 0.3.10 / DOI Bridge 0.1.19 — 2026-08-01
 
 - 增加论文页常驻侧栏、拖动、关闭和 `PL` 最小化标签；

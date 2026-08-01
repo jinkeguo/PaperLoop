@@ -10,6 +10,113 @@ Zotero.PaperLoopSidebar = new function () {
 	const GAP = 12;
 	const DRAFT_PREFIX = 'paperloop:draft:v1:';
 	const SYNC_PREFIX = 'paperloop:sync:v1:';
+	const LANGUAGE_KEY = 'paperloop:language:v1';
+	const STRINGS = {
+		zh: {
+			currentPaper: '当前文献',
+			waitingForZotero: '等待 Zotero 识别',
+			libraryRootSuffix: '（根目录）',
+			libraryRoot: '文库根目录',
+			noEditableTargets: '没有找到可编辑的 Zotero 分类',
+			targetSelected: '当前论文将保存到：{target}',
+			classificationFailed: '分类选择失败：{detail}',
+			searching: '搜索中…',
+			search: '搜索',
+			readTargetsFailed: '无法读取 Zotero 分类：{detail}',
+			confirmZotero: '请确认 Zotero 已启动',
+			conflict: 'Zotero 笔记和浏览器草稿都已变化；已保留浏览器草稿，请选择是否载入 Zotero 内容',
+			deleted: 'Zotero 中的关联条目位于回收站；再次收藏时将重新建立有效条目关联',
+			recognizing: '正在识别当前页面…',
+			recognizedTarget: '已识别；将完整收藏到：{target}',
+			loadingTargets: '已识别；正在读取 Zotero 分类…',
+			chooseTarget: '请先选择保存到哪个 Zotero 分类',
+			unrecognized: '当前页面暂未识别，不会创建残缺条目',
+			syncAgain: '再次同步思考',
+			saveSelected: '一键收藏到所选分类',
+			expand: '展开 PaperLoop',
+			panelAria: 'PaperLoop 文献收藏与思考',
+			reset: '复位到右侧',
+			minimize: '最小化到网页边缘',
+			minimizeAria: '最小化 PaperLoop',
+			close: '彻底隐藏',
+			closeAria: '彻底隐藏 PaperLoop',
+			loadZoteroNote: '载入 Zotero 笔记',
+			chooseZoteroTarget: '选择 Zotero 分类',
+			refreshZotero: '刷新 Zotero',
+			autoOpen: '自动识别后打开',
+			searchPlaceholder: '分类名称，如 生物、化学',
+			cancelSelection: '取消选择',
+			thoughtLabel: '阅读思考',
+			thoughtPlaceholder: '为什么重要？可用于论文哪一部分？与哪些工作相关？',
+			draftHint: '草稿自动保存在当前浏览器；写入 Zotero 仍由下方按钮明确触发。',
+			saveToZotero: '一键收藏到 Zotero',
+			switchLanguage: 'Switch to English',
+			autoOpenFailed: '自动打开设置保存失败',
+			writing: '正在写入 Zotero…',
+			translatorSaving: '正在用 Zotero Translator 收藏到：{target}…',
+			pdfAdded: '思考已同步，并已向原 Zotero 条目补充 PDF（{target}）',
+			pdfFailed: '思考已同步，但 PDF 补充失败：{detail}',
+			noPdf: '思考已同步；当前 Translator 没有提供可下载 PDF',
+			autoAttachmentsDisabled: '思考已同步；Zotero 的“自动下载关联文件”当前已关闭',
+			classified: '已加入 {target}；原有分类保留',
+			repeatedContent: '思考内容没有变化；已保持同一条 Zotero 笔记（{target}）',
+			updatedThought: '已更新同一条 PaperLoop 思考（{target}）',
+			savedThought: '已写入 {target}；后续修改会更新同一条思考',
+			saveFailed: '保存失败：{detail}'
+		},
+		en: {
+			currentPaper: 'Current paper',
+			waitingForZotero: 'Waiting for Zotero detection',
+			libraryRootSuffix: ' (root)',
+			libraryRoot: 'Library root',
+			noEditableTargets: 'No editable Zotero libraries or collections found',
+			targetSelected: 'This paper will be saved to: {target}',
+			classificationFailed: 'Destination selection failed: {detail}',
+			searching: 'Searching…',
+			search: 'Search',
+			readTargetsFailed: 'Could not read Zotero destinations: {detail}',
+			confirmZotero: 'Make sure Zotero is running',
+			conflict: 'Both the Zotero note and browser draft changed. The browser draft was preserved; choose whether to load the Zotero version.',
+			deleted: 'The linked Zotero item is in the trash. Saving again will create or reconnect a valid item.',
+			recognizing: 'Detecting the current page…',
+			recognizedTarget: 'Paper detected; ready to save to: {target}',
+			loadingTargets: 'Paper detected; loading Zotero destinations…',
+			chooseTarget: 'Choose a Zotero library or collection first',
+			unrecognized: 'This page is not recognized; no incomplete item will be created',
+			syncAgain: 'Sync thought again',
+			saveSelected: 'Save to selected destination',
+			expand: 'Expand PaperLoop',
+			panelAria: 'PaperLoop paper capture and thoughts',
+			reset: 'Reset to the right',
+			minimize: 'Minimize to page edge',
+			minimizeAria: 'Minimize PaperLoop',
+			close: 'Hide completely',
+			closeAria: 'Hide PaperLoop completely',
+			loadZoteroNote: 'Load Zotero note',
+			chooseZoteroTarget: 'Choose Zotero destination',
+			refreshZotero: 'Refresh Zotero',
+			autoOpen: 'Open after paper detection',
+			searchPlaceholder: 'Collection name, e.g. Biology',
+			cancelSelection: 'Clear selection',
+			thoughtLabel: 'Reading thought',
+			thoughtPlaceholder: 'Why does this matter? Where could it support the paper? What work is it related to?',
+			draftHint: 'The draft is saved in this browser. Writing to Zotero only happens when you press the button below.',
+			saveToZotero: 'Save to Zotero',
+			switchLanguage: '切换到中文',
+			autoOpenFailed: 'Could not save the automatic-opening setting',
+			writing: 'Writing to Zotero…',
+			translatorSaving: 'Saving with Zotero Translator to: {target}…',
+			pdfAdded: 'Thought synchronized and a PDF was added to the existing Zotero item ({target})',
+			pdfFailed: 'Thought synchronized, but PDF backfill failed: {detail}',
+			noPdf: 'Thought synchronized; the current translator did not provide a downloadable PDF',
+			autoAttachmentsDisabled: 'Thought synchronized; Zotero automatic attachment downloads are disabled',
+			classified: 'Added to {target}; existing collections were preserved',
+			repeatedContent: 'The thought is unchanged; the same Zotero note was kept ({target})',
+			updatedThought: 'Updated the same PaperLoop thought ({target})',
+			savedThought: 'Saved to {target}; later edits will update the same thought',
+			saveFailed: 'Save failed: {detail}'
+		}
+	};
 	let host = null;
 	let shadow = null;
 	let elements = {};
@@ -23,6 +130,46 @@ Zotero.PaperLoopSidebar = new function () {
 	let resizeHandler = null;
 	let refreshTimer = null;
 	let refreshPending = false;
+	let language = 'zh';
+	let languageLoaded = false;
+	let lastTargets = [];
+	const draftCache = new Map();
+
+	function text(key, values={}) {
+		const messages = STRINGS[language] || STRINGS.zh;
+		const template = messages[key] || STRINGS.zh[key] || key;
+		return template.replace(/\{([A-Za-z0-9_]+)\}/g, (match, name) =>
+			Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match
+		);
+	}
+
+	function detectedLanguage() {
+		let value = '';
+		try {
+			value = browser.i18n && browser.i18n.getUILanguage
+				? browser.i18n.getUILanguage()
+				: navigator.language;
+		}
+		catch (e) {
+			value = navigator.language;
+		}
+		return /^zh(?:-|$)/i.test(String(value || '')) ? 'zh' : 'en';
+	}
+
+	async function readLanguage() {
+		if (languageLoaded) return language;
+		try {
+			const stored = await browser.storage.local.get(LANGUAGE_KEY);
+			const value = stored[LANGUAGE_KEY];
+			language = value === 'zh' || value === 'en' ? value : detectedLanguage();
+		}
+		catch (e) {
+			Zotero.logError(e);
+			language = detectedLanguage();
+		}
+		languageLoaded = true;
+		return language;
+	}
 
 	function draftKey(documentKey) {
 		return DRAFT_PREFIX + String(documentKey || window.location.href).slice(0, 1800);
@@ -81,8 +228,11 @@ Zotero.PaperLoopSidebar = new function () {
 	async function readDraft(documentKey) {
 		try {
 			const key = draftKey(documentKey);
+			if (draftCache.has(key)) return draftCache.get(key);
 			const stored = await browser.storage.local.get(key);
-			return typeof stored[key] === 'string' ? stored[key] : '';
+			const value = typeof stored[key] === 'string' ? stored[key] : '';
+			draftCache.set(key, value);
+			return value;
 		}
 		catch (e) {
 			Zotero.logError(e);
@@ -90,32 +240,54 @@ Zotero.PaperLoopSidebar = new function () {
 		}
 	}
 
+	async function writeDraftValue(key, value) {
+		try {
+			if (value) {
+				await browser.storage.local.set({[key]: value});
+			}
+			else {
+				await browser.storage.local.remove(key);
+			}
+		}
+		catch (e) {
+			Zotero.logError(e);
+		}
+	}
+
 	function persistDraft() {
 		if (!state || !elements.thought) return;
 		const key = draftKey(state.documentKey);
 		const value = elements.thought.value;
+		draftCache.set(key, value);
 		clearTimeout(saveTimer);
-		saveTimer = setTimeout(async () => {
-			try {
-				if (value) {
-					await browser.storage.local.set({[key]: value});
-				}
-				else {
-					await browser.storage.local.remove(key);
-				}
-			}
-			catch (e) {
-				Zotero.logError(e);
-			}
-		}, 250);
+		saveTimer = setTimeout(() => writeDraftValue(key, value), 250);
 	}
 
-	function setStatus(kind, text) {
+	function flushDraft() {
+		if (!state) return null;
+		const key = draftKey(state.documentKey);
+		const value = draftCache.has(key)
+			? draftCache.get(key)
+			: (elements.thought ? elements.thought.value : '');
+		draftCache.set(key, value);
+		clearTimeout(saveTimer);
+		return writeDraftValue(key, value);
+	}
+
+	function setStatus(kind, value, messageKey=null, messageValues={}) {
 		if (!elements.status) return;
 		elements.status.dataset.kind = kind || 'neutral';
-		elements.status.textContent = text || '';
-		if (state) state.statusKind = kind || 'neutral';
+		elements.status.textContent = value || '';
+		if (state) {
+			state.statusKind = kind || 'neutral';
+			state.statusMessageKey = messageKey;
+			state.statusMessageValues = messageValues;
+		}
 		if (elements.miniDot) elements.miniDot.dataset.kind = kind || 'neutral';
+	}
+
+	function setLocalizedStatus(kind, key, values={}) {
+		setStatus(kind, text(key, values), key, values);
 	}
 
 	function targetMeta(target) {
@@ -178,17 +350,18 @@ Zotero.PaperLoopSidebar = new function () {
 		elements.selected.hidden = !target;
 		if (!target) return;
 		elements.selectedTitle.textContent = target.type === 'library'
-			? `${target.name}（根目录）`
+			? `${target.name}${text('libraryRootSuffix')}`
 			: target.name;
 		elements.selectedMeta.textContent = targetMeta(target);
 	}
 
 	function renderResults(targets) {
+		lastTargets = targets;
 		elements.results.textContent = '';
 		if (!targets.length) {
 			const empty = document.createElement('div');
 			empty.className = 'empty';
-			empty.textContent = '没有找到可编辑的 Zotero 分类';
+			empty.textContent = text('noEditableTargets');
 			elements.results.appendChild(empty);
 			return;
 		}
@@ -201,7 +374,7 @@ Zotero.PaperLoopSidebar = new function () {
 			title.textContent = `${'　'.repeat(Math.max(0, target.level - 1))}${target.name}`;
 			const meta = document.createElement('span');
 			meta.className = 'result-meta';
-			meta.textContent = target.type === 'library' ? '文库根目录' : target.path;
+			meta.textContent = target.type === 'library' ? text('libraryRoot') : target.path;
 			button.append(title, meta);
 			button.addEventListener('click', async () => {
 				try {
@@ -211,12 +384,14 @@ Zotero.PaperLoopSidebar = new function () {
 					state.selectedTarget = response.target || target;
 					elements.picker.hidden = true;
 					renderSelectedTarget();
-					setStatus('ready', `当前论文将保存到：${targetMeta(state.selectedTarget)}`);
+					setLocalizedStatus('ready', 'targetSelected', {target: targetMeta(state.selectedTarget)});
 					renderState();
 					await refreshZoteroState();
 				}
 				catch (e) {
-					setStatus('error', `分类选择失败：${e && e.message ? e.message : '请确认 Zotero 已启动'}`);
+					setLocalizedStatus('error', 'classificationFailed', {
+						detail: e && e.message ? e.message : text('confirmZotero')
+					});
 				}
 			});
 			elements.results.appendChild(button);
@@ -227,7 +402,7 @@ Zotero.PaperLoopSidebar = new function () {
 		if (pickerLoading) return;
 		pickerLoading = true;
 		elements.search.disabled = true;
-		elements.search.textContent = '搜索中…';
+		elements.search.textContent = text('searching');
 		elements.results.textContent = '';
 		try {
 			const response = await Zotero.Connector_Browser.paperLoopGetCollections({
@@ -247,45 +422,106 @@ Zotero.PaperLoopSidebar = new function () {
 		catch (e) {
 			const empty = document.createElement('div');
 			empty.className = 'empty error-text';
-			empty.textContent = `无法读取 Zotero 分类：${e && e.message ? e.message : '请确认 Zotero 已启动'}`;
+			empty.textContent = text('readTargetsFailed', {
+				detail: e && e.message ? e.message : text('confirmZotero')
+			});
 			elements.results.appendChild(empty);
-			setStatus('error', empty.textContent);
+			setLocalizedStatus('error', 'readTargetsFailed', {
+				detail: e && e.message ? e.message : text('confirmZotero')
+			});
 		}
 		finally {
 			pickerLoading = false;
 			elements.search.disabled = false;
-			elements.search.textContent = '搜索';
+			elements.search.textContent = text('search');
 		}
+	}
+
+	function applyStaticText() {
+		if (!host) return;
+		elements.mini.title = text('expand');
+		elements.mini.setAttribute('aria-label', text('expand'));
+		elements.panel.setAttribute('aria-label', text('panelAria'));
+		elements.language.textContent = language === 'zh' ? 'EN' : '中';
+		elements.language.title = text('switchLanguage');
+		elements.language.setAttribute('aria-label', text('switchLanguage'));
+		elements.reset.title = text('reset');
+		elements.reset.setAttribute('aria-label', text('reset'));
+		elements.minimize.title = text('minimize');
+		elements.minimize.setAttribute('aria-label', text('minimizeAria'));
+		elements.close.title = text('close');
+		elements.close.setAttribute('aria-label', text('closeAria'));
+		elements.remoteLoad.textContent = text('loadZoteroNote');
+		elements.choose.textContent = text('chooseZoteroTarget');
+		elements.refresh.textContent = text('refreshZotero');
+		elements.autoLabel.textContent = text('autoOpen');
+		elements.query.placeholder = text('searchPlaceholder');
+		elements.search.textContent = pickerLoading ? text('searching') : text('search');
+		elements.selectedClear.title = text('cancelSelection');
+		elements.selectedClear.setAttribute('aria-label', text('cancelSelection'));
+		elements.thoughtLabel.textContent = text('thoughtLabel');
+		elements.thought.placeholder = text('thoughtPlaceholder');
+		elements.hint.textContent = text('draftHint');
+		elements.save.textContent = state && state.saved ? text('syncAgain') : text('saveSelected');
+	}
+
+	function applyLanguage() {
+		if (!host) return;
+		applyStaticText();
+		if (!state) return;
+		elements.title.textContent = state.title || text('currentPaper');
+		elements.source.textContent = state.translatorLabel || text('waitingForZotero');
+		renderSelectedTarget();
+		if (targetsLoaded) renderResults(lastTargets);
+		if (state.statusMessageKey) {
+			setLocalizedStatus(
+				state.statusKind,
+				state.statusMessageKey,
+				state.statusMessageValues || {}
+			);
+		}
+		else {
+			renderState();
+		}
+	}
+
+	async function setLanguage(nextLanguage) {
+		if (nextLanguage !== 'zh' && nextLanguage !== 'en') return false;
+		language = nextLanguage;
+		languageLoaded = true;
+		await browser.storage.local.set({[LANGUAGE_KEY]: language});
+		applyLanguage();
+		return true;
 	}
 
 	function renderState() {
 		if (!state || !host) return;
-		elements.title.textContent = state.title || '当前文献';
+		elements.title.textContent = state.title || text('currentPaper');
 		elements.title.title = state.title || '';
-		elements.source.textContent = state.translatorLabel || '等待 Zotero 识别';
+		elements.source.textContent = state.translatorLabel || text('waitingForZotero');
 		if (state.remoteConflict) {
-			setStatus('conflict', 'Zotero 笔记和浏览器草稿都已变化；已保留浏览器草稿，请选择是否载入 Zotero 内容');
+			setLocalizedStatus('conflict', 'conflict');
 		}
 		else if (state.remoteDeleted) {
-			setStatus('pending', 'Zotero 中的关联条目位于回收站；再次收藏时将重新建立有效条目关联');
+			setLocalizedStatus('pending', 'deleted');
 		}
 		else if (state.pending) {
-			setStatus('pending', '正在识别当前页面…');
+			setLocalizedStatus('pending', 'recognizing');
 		}
 		else if (state.canSave && state.selectedTarget) {
-			setStatus('ready', `已识别；将完整收藏到：${targetMeta(state.selectedTarget)}`);
+			setLocalizedStatus('ready', 'recognizedTarget', {target: targetMeta(state.selectedTarget)});
 		}
 		else if (state.canSave && !targetsLoaded) {
-			setStatus('pending', '已识别；正在读取 Zotero 分类…');
+			setLocalizedStatus('pending', 'loadingTargets');
 		}
 		else if (state.canSave) {
-			setStatus('error', '请先选择保存到哪个 Zotero 分类');
+			setLocalizedStatus('error', 'chooseTarget');
 		}
 		else {
-			setStatus('error', '当前页面暂未识别，不会创建残缺条目');
+			setLocalizedStatus('error', 'unrecognized');
 		}
 		elements.save.disabled = saving || !state.canSave || !state.selectedTarget;
-		elements.save.textContent = state.saved ? '再次同步思考' : '一键收藏到所选分类';
+		elements.save.textContent = state.saved ? text('syncAgain') : text('saveSelected');
 		if (elements.autoOpen) elements.autoOpen.checked = state.autoOpen !== false;
 		renderSelectedTarget();
 	}
@@ -407,6 +643,7 @@ Zotero.PaperLoopSidebar = new function () {
 				.brand { font-size: 18px; font-weight: 750; letter-spacing: .2px; }
 				.window-actions { display:flex; gap:7px; }
 				.window-button { min-width:32px; height:32px; border:0; border-radius:10px; color:white; background:rgba(255,255,255,.13); cursor:pointer; font-size:16px; line-height:1; }
+				.window-button.language { font-size:11px; font-weight:800; letter-spacing:.2px; }
 				.window-button:hover { background:rgba(255,255,255,.23); }
 				.title { margin-top:15px; font-size:14px; font-weight:650; line-height:1.45; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; }
 				.source { margin-top:9px; display:inline-flex; max-width:100%; padding:5px 9px; border-radius:999px; background:rgba(255,255,255,.13); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -447,7 +684,7 @@ Zotero.PaperLoopSidebar = new function () {
 			<button class="mini-tab" type="button" title="展开 PaperLoop" aria-label="展开 PaperLoop" hidden><span class="mini-dot"></span>PL</button>
 			<aside class="panel" role="complementary" aria-label="PaperLoop 文献收藏与思考">
 				<header class="header">
-					<div class="header-row"><div class="brand">PaperLoop</div><div class="window-actions"><button class="window-button reset" type="button" title="复位到右侧" aria-label="复位到右侧">⇥</button><button class="window-button minimize" type="button" title="最小化到网页边缘" aria-label="最小化 PaperLoop">—</button><button class="window-button close" type="button" title="彻底隐藏" aria-label="彻底隐藏 PaperLoop">×</button></div></div>
+					<div class="header-row"><div class="brand">PaperLoop</div><div class="window-actions"><button class="window-button language" type="button">EN</button><button class="window-button reset" type="button" title="复位到右侧" aria-label="复位到右侧">⇥</button><button class="window-button minimize" type="button" title="最小化到网页边缘" aria-label="最小化 PaperLoop">—</button><button class="window-button close" type="button" title="彻底隐藏" aria-label="彻底隐藏 PaperLoop">×</button></div></div>
 					<div class="title"></div><div class="source"></div>
 				</header>
 				<div class="body">
@@ -456,14 +693,14 @@ Zotero.PaperLoopSidebar = new function () {
 					<div class="tools">
 						<button class="secondary choose" type="button">选择 Zotero 分类</button>
 						<button class="secondary refresh" type="button">刷新 Zotero</button>
-						<label class="auto-row"><input class="auto-open" type="checkbox"> 自动识别后打开</label>
+						<label class="auto-row"><input class="auto-open" type="checkbox"><span class="auto-label">自动识别后打开</span></label>
 					</div>
 					<div class="picker" hidden>
 						<div class="search-row"><input class="query" type="search" maxlength="240" placeholder="分类名称，如 生物、化学"><button class="secondary search" type="button">搜索</button></div>
 						<div class="results"></div>
 					</div>
 					<div class="selected" hidden><div class="selected-title"></div><div class="selected-meta"></div><button class="selected-clear" type="button" title="取消选择">×</button></div>
-					<label for="paperloop-thought">阅读思考</label>
+					<label class="thought-label" for="paperloop-thought">阅读思考</label>
 					<textarea id="paperloop-thought" maxlength="20000" placeholder="为什么重要？可用于论文哪一部分？与哪些工作相关？"></textarea>
 					<div class="hint">草稿自动保存在当前浏览器；写入 Zotero 仍由下方按钮明确触发。</div>
 				</div>
@@ -474,6 +711,7 @@ Zotero.PaperLoopSidebar = new function () {
 			miniDot: shadow.querySelector('.mini-dot'),
 			panel: shadow.querySelector('.panel'),
 			header: shadow.querySelector('.header'),
+			language: shadow.querySelector('.language'),
 			reset: shadow.querySelector('.reset'),
 			minimize: shadow.querySelector('.minimize'),
 			close: shadow.querySelector('.close'),
@@ -484,6 +722,7 @@ Zotero.PaperLoopSidebar = new function () {
 			choose: shadow.querySelector('.choose'),
 			refresh: shadow.querySelector('.refresh'),
 			autoOpen: shadow.querySelector('.auto-open'),
+			autoLabel: shadow.querySelector('.auto-label'),
 			picker: shadow.querySelector('.picker'),
 			query: shadow.querySelector('.query'),
 			search: shadow.querySelector('.search'),
@@ -492,9 +731,14 @@ Zotero.PaperLoopSidebar = new function () {
 			selectedTitle: shadow.querySelector('.selected-title'),
 			selectedMeta: shadow.querySelector('.selected-meta'),
 			selectedClear: shadow.querySelector('.selected-clear'),
+			thoughtLabel: shadow.querySelector('.thought-label'),
 			thought: shadow.querySelector('textarea'),
+			hint: shadow.querySelector('.hint'),
 			save: shadow.querySelector('.save')
 		};
+		elements.language.addEventListener('click', () => {
+			setLanguage(language === 'zh' ? 'en' : 'zh').catch(Zotero.logError);
+		});
 		elements.header.addEventListener('pointerdown', beginDrag);
 		window.addEventListener('pointermove', moveDrag, true);
 		window.addEventListener('pointerup', endDrag, true);
@@ -518,7 +762,6 @@ Zotero.PaperLoopSidebar = new function () {
 			refreshZoteroState();
 		});
 		elements.close.addEventListener('click', () => {
-			persistDraft();
 			Zotero.Connector_Browser.paperLoopSetPinned(false).catch(Zotero.logError);
 			Zotero.PaperLoopSidebar.close();
 		});
@@ -553,7 +796,7 @@ Zotero.PaperLoopSidebar = new function () {
 			catch (e) {
 				state.autoOpen = !enabled;
 				elements.autoOpen.checked = !enabled;
-				setStatus('error', '自动打开设置保存失败');
+				setLocalizedStatus('error', 'autoOpenFailed');
 			}
 		});
 		elements.thought.addEventListener('input', () => {
@@ -567,6 +810,7 @@ Zotero.PaperLoopSidebar = new function () {
 		});
 		elements.save.addEventListener('click', () => Zotero.PaperLoopSidebar.save());
 		(document.body || document.documentElement).appendChild(host);
+		applyStaticText();
 	}
 
 	this.show = async function (props) {
@@ -583,6 +827,7 @@ Zotero.PaperLoopSidebar = new function () {
 			props || {},
 			{open: true}
 		);
+		await readLanguage();
 		createPanel();
 		renderViewMode();
 		renderState();
@@ -614,6 +859,8 @@ Zotero.PaperLoopSidebar = new function () {
 	};
 
 	this.close = function () {
+		const draftWrite = flushDraft();
+		if (draftWrite) draftWrite.catch(Zotero.logError);
 		clearTimeout(saveTimer);
 		clearInterval(refreshTimer);
 		window.removeEventListener('pointermove', moveDrag, true);
@@ -643,8 +890,8 @@ Zotero.PaperLoopSidebar = new function () {
 		saving = true;
 		persistDraft();
 		elements.save.disabled = true;
-		elements.save.textContent = '正在写入 Zotero…';
-		setStatus('pending', `正在用 Zotero Translator 收藏到：${targetMeta(state.selectedTarget)}…`);
+		elements.save.textContent = text('writing');
+		setLocalizedStatus('pending', 'translatorSaving', {target: targetMeta(state.selectedTarget)});
 		try {
 			const response = await Zotero.Connector_Browser.paperLoopSaveThought({
 				thought: elements.thought.value,
@@ -658,39 +905,39 @@ Zotero.PaperLoopSidebar = new function () {
 			elements.remoteLoad.hidden = true;
 			await refreshZoteroState();
 			if (response.pdfAdded) {
-				setStatus('ready', `思考已同步，并已向原 Zotero 条目补充 PDF（${targetMeta(state.selectedTarget)}）`);
+				setLocalizedStatus('ready', 'pdfAdded', {target: targetMeta(state.selectedTarget)});
 			}
 			else if (response.pdfError) {
-				setStatus('error', `思考已同步，但 PDF 补充失败：${response.pdfError}`);
+				setLocalizedStatus('error', 'pdfFailed', {detail: response.pdfError});
 			}
 			else if (response.pdfMissing && response.pdfAvailable === false) {
-				setStatus('ready', '思考已同步；当前 Translator 没有提供可下载 PDF');
+				setLocalizedStatus('ready', 'noPdf');
 			}
 			else if (response.pdfSkipped === 'DOWNLOAD_ASSOCIATED_FILES_DISABLED') {
-				setStatus('ready', '思考已同步；Zotero 的“自动下载关联文件”当前已关闭');
+				setLocalizedStatus('ready', 'autoAttachmentsDisabled');
 			}
 			else if (response.mode === 'classify') {
-				setStatus('ready', `已加入 ${targetMeta(state.selectedTarget)}；原有分类保留`);
+				setLocalizedStatus('ready', 'classified', {target: targetMeta(state.selectedTarget)});
 			}
 			else if (response.repeatedContent) {
-				setStatus('ready', `思考内容没有变化；已保持同一条 Zotero 笔记（${targetMeta(state.selectedTarget)}）`);
+				setLocalizedStatus('ready', 'repeatedContent', {target: targetMeta(state.selectedTarget)});
 			}
 			else if (response.mode === 'sync' && response.updated) {
-				setStatus('ready', `已更新同一条 PaperLoop 思考（${targetMeta(state.selectedTarget)}）`);
+				setLocalizedStatus('ready', 'updatedThought', {target: targetMeta(state.selectedTarget)});
 			}
 			else {
-				setStatus('ready', `已写入 ${targetMeta(state.selectedTarget)}；后续修改会更新同一条思考`);
+				setLocalizedStatus('ready', 'savedThought', {target: targetMeta(state.selectedTarget)});
 			}
 		}
 		catch (e) {
-			setStatus('error', `保存失败：${e && e.message ? e.message : '请确认 Zotero 已启动'}`);
+			setLocalizedStatus('error', 'saveFailed', {
+				detail: e && e.message ? e.message : text('confirmZotero')
+			});
 		}
 		finally {
 			saving = false;
 			elements.save.disabled = !state.canSave || !state.selectedTarget;
-			elements.save.textContent = state.saved
-				? '再次同步思考'
-				: '一键收藏到所选分类';
+			elements.save.textContent = state.saved ? text('syncAgain') : text('saveSelected');
 			renderSelectedTarget();
 		}
 	};
@@ -718,10 +965,28 @@ Zotero.PaperLoopSidebar = new function () {
 			remoteNoteKey: state && state.remote && state.remote.noteKey,
 			remoteConflict: !!(state && state.remoteConflict),
 			remoteLoadVisible: !!(elements.remoteLoad && !elements.remoteLoad.hidden),
+			language,
+			languageButtonText: elements.language.textContent,
+			chooseText: elements.choose.textContent,
+			refreshText: elements.refresh.textContent,
+			autoLabelText: elements.autoLabel.textContent,
+			thoughtLabelText: elements.thoughtLabel.textContent,
+			thoughtPlaceholder: elements.thought.placeholder,
+			saveText: elements.save.textContent,
 			status: elements.status.textContent,
 			htmlOverflow: document.documentElement.style.overflow,
 			bodyOverflow: document.body && document.body.style.overflow
 		};
+	};
+
+	this.debugSetLanguage = function (value) {
+		return setLanguage(value);
+	};
+
+	this.debugClickLanguage = function () {
+		if (!elements.language) return false;
+		elements.language.click();
+		return true;
 	};
 
 	this.debugSetThought = function (value) {

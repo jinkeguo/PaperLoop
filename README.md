@@ -31,6 +31,10 @@ Unsynchronized text is stored locally by paper identity. Closing and reopening t
 
 When automatic opening is enabled, PaperLoop expands after Zotero's translator system recognizes a research-paper page. Navigating the same tab to another paper refreshes the panel, while separate tabs keep separate drafts. Automatic opening can be disabled, and the panel can be minimized or closed at any time.
 
+### Switch the reading panel between Chinese and English
+
+Use the `EN` / `中` button in the PaperLoop title bar to switch the entire panel immediately, including detection status, Zotero destination controls, thought fields, save feedback, and recovery messages. The preference is stored locally for the extension and survives page changes, browser restarts, and in-place upgrades without changing the active paper, draft, or Zotero destination.
+
 ## What comes from Zotero Connector
 
 PaperLoop does not replace Zotero Connector's extraction engine and does not visually guess incomplete metadata.
@@ -58,7 +62,7 @@ Repeated clicks and network retries are idempotent. Within one Zotero library, a
 
 | Component | Version | Verified environment |
 |---|---:|---|
-| PaperLoop browser extension | `0.3.10` | Microsoft Edge / Chromium, Manifest V3 |
+| PaperLoop browser extension | `0.3.11` | Microsoft Edge / Chromium, Manifest V3 |
 | PaperLoop DOI Bridge | `0.1.19` | Zotero 7.0.x |
 
 Download both matching files from the [latest release](https://github.com/jinkeguo/PaperLoop/releases/latest), then follow [Installation and acceptance](docs/INSTALLATION.md).

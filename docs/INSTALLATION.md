@@ -18,7 +18,7 @@
 ## 2. 安装浏览器扩展
 
 1. 暂时禁用官方 Zotero Connector，避免两个 Connector 同时注入页面；
-2. 解压 `PaperLoop-Browser-Extension-0.3.10.zip`；
+2. 解压 `PaperLoop-Browser-Extension-0.3.11.zip`；
 3. Edge 打开 `edge://extensions`，Chrome 打开 `chrome://extensions`；
 4. 开启开发人员模式，点击“加载解压缩的扩展”；
 5. 选择直接包含 `manifest.json` 的解压目录；

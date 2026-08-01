@@ -17,7 +17,7 @@
 
 ## 提交代码
 
-1. 基于 `paperloop-0.3.10` 或后续 PaperLoop 分支创建功能分支；
+1. 基于 `paperloop-0.3.11` 或后续 PaperLoop 分支创建功能分支；
 2. 保持 Zotero Translator 为题录可信来源；
 3. 新写入路径必须考虑重复点击、并发请求、缓存缺失与跨 Library；
 4. 对行为变更补充自动化测试；
