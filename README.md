@@ -1,83 +1,85 @@
+<p align="right">
+  <a href="./README.md"><img alt="English" src="https://img.shields.io/badge/README-English-1f6feb"></a>
+  <a href="./README.zh-CN.md"><img alt="简体中文" src="https://img.shields.io/badge/README-简体中文-2da44e"></a>
+</p>
+
 # PaperLoop
 
-PaperLoop 是一个面向论文阅读流程的实验性工具：在论文网页旁持续记录思考，选择 Zotero 文库/分类后，一键用 Zotero Translator 保存可信题录和附件，并把思考写成该条目下可持续更新的 Zotero 子笔记。
+**Keep reading. Capture the thought. Save the paper and the note to Zotero.**
 
-当前发布组合：
+PaperLoop is a research-reading extension **built by modifying Zotero Connector**. It retains Zotero Connector's page detection, translator, metadata, and attachment pipeline, while adding a persistent reading panel, local thought drafts, automatic article-page opening, and a coordinated save-to-Zotero workflow. The result is a continuous path from reading and drafting to a structured Zotero item and an editable child note.
 
-- PaperLoop for Zotero Connector `0.3.10`
-- PaperLoop DOI Bridge for Zotero 7 `0.1.19`
+> PaperLoop is an independent modified distribution. It is not an official Zotero product and is not endorsed by Zotero.
 
-> 本项目是 Zotero Connector 的修改分支，不是 Zotero 官方产品，也未获得 Zotero 官方背书。
+![PaperLoop beside a detected research paper](docs/assets/paperloop-interface.png)
 
-## 核心能力
+## What PaperLoop adds
 
-- 可拖动、可最小化的常驻阅读侧栏，不阻塞论文页面滚动；
-- 同一标签页切换论文自动刷新，多标签页各自保留侧栏和草稿；
-- 使用 Zotero 官方/社区 Translator 获取题录，不用视觉猜测补齐残缺元数据；
-- 在侧栏中选择 Zotero Library 和 Collection，一次确认完成收藏；
-- DOI 去重、重复点击幂等、同一文库多 Collection 复用同一主条目；
-- 思考直接进入 Zotero 子笔记，后续同步更新同一笔记；
-- 浏览器缓存丢失时，按 DOI 从 Zotero 恢复条目和 PaperLoop 笔记关联；
-- 已有条目缺 PDF 时可再次尝试补录，并拒绝把 HTTP 200 的 HTML 登录页伪装成 PDF。
+### Write while the paper stays visible
 
-## 使用流程
+The PaperLoop panel stays beside the article while the page remains scrollable. You can record questions, interpretations, and writing ideas continuously instead of opening a modal window or switching to another application.
 
-```mermaid
-flowchart LR
-    A["打开论文详情页"] --> B["Zotero Translator 识别"]
-    B --> C["侧栏选择 Library / Collection"]
-    C --> D["持续记录思考"]
-    D --> E["一键收藏"]
-    E --> F["Zotero 主条目与附件"]
-    E --> G["PaperLoop Zotero 子笔记"]
-    D --> H["再次同步思考"]
-    H --> G
-```
+### Reduce capture to one coordinated action
 
-Agent 或大模型 API 不参与题录识别、收藏、去重和笔记写入的可靠主链路。未来可把 Agent 用于摘要、问答和写作辅助，但不能代替 Zotero 成为文献数据源。
+Select the Zotero library and collection, write the thought, and save once. PaperLoop coordinates bibliographic capture, available attachments, collection placement, and thought notes, simplifying the Zotero Connector save workflow and folding thought synchronization into the same action.
 
-## 安装
+### Protect unfinished thoughts in the browser
 
-从 GitHub Release 下载浏览器扩展 ZIP 和 Zotero Bridge XPI，然后按 [安装与验收说明](docs/INSTALLATION.md) 操作。浏览器扩展目前是开发者模式加载的测试版，不能直接把 ZIP 当作“已解压扩展”安装。
+Unsynchronized text is stored locally by paper identity. Closing and reopening the page restores the draft. After synchronization, Zotero is the authoritative copy; DOI-based recovery can reconnect the browser to the Zotero item and PaperLoop note if browser-side association data is lost.
 
-## 兼容性与状态
+### Open automatically on recognized paper pages
 
-| 组件 | 已验证环境 | 状态 |
-|---|---|---|
-| 浏览器扩展 | Microsoft Edge / Chromium，Manifest V3 | 0.3.10 |
-| Zotero Bridge | Zotero 7.0.x | 0.1.19 |
-| ScienceDirect | 登录态真实论文页 | Translator、思考、已有条目补 PDF 链路已测试 |
-| CNKI / 万方 | 固定社区 Translator | 题录依赖页面结构；PDF 依赖登录和机构权限 |
+When automatic opening is enabled, PaperLoop expands after Zotero's translator system recognizes a research-paper page. Navigating the same tab to another paper refreshes the panel, while separate tabs keep separate drafts. Automatic opening can be disabled, and the panel can be minimized or closed at any time.
 
-自动化回归覆盖 DOI 去重、并发/重复点击、分类、跨 Library、笔记更新、浏览器缓存恢复、PDF 去重和 HTML→PDF 认证回退。
+## What comes from Zotero Connector
 
-## 数据与隐私
+PaperLoop does not replace Zotero Connector's extraction engine and does not visually guess incomplete metadata.
 
-- Zotero 是条目、附件和笔记的可信数据源；
-- Bridge 只注册本机 Zotero Connector HTTP 端点，不要求 Zotero API Key；
-- 未实现遥测、广告或 PaperLoop 云端；
-- 浏览器本地只保存侧栏设置、未同步草稿和恢复关联所需的最小状态；
-- 网站仍会收到正常浏览和全文下载请求，受其 Cookie、账号和机构权限约束。
+| Component | Responsibility |
+|---|---|
+| **Zotero Connector foundation** | Detects supported publication pages through Zotero translators; extracts bibliographic metadata; discovers and saves supported attachments. |
+| **PaperLoop browser workflow** | Provides the persistent reading panel, per-paper browser drafts, automatic opening, Zotero destination selection, one-click orchestration, and visible success or partial-failure feedback. |
+| **PaperLoop DOI Bridge for Zotero 7** | Queries existing Zotero items by DOI, reuses items inside the selected library, assigns collections, updates one PaperLoop child note, restores associations, and supports verified PDF backfill. |
 
-详见 [隐私与安全边界](docs/PRIVACY.md)。
+The browser extension is based on [zotero/zotero-connectors](https://github.com/zotero/zotero-connectors). Zotero desktop integration builds on the APIs and data model provided by [zotero/zotero](https://github.com/zotero/zotero).
 
-## 源码结构
+## Reading-to-Zotero workflow
 
-- `src/`、`gulpfile.js`：基于 Zotero Connector 的 PaperLoop 浏览器扩展修改；
-- `paperloop-zotero-bridge/`：Zotero 7 本地桥接插件；
-- `test/`：上游测试与 PaperLoop 回归测试；
-- `docs/`：安装、架构、隐私、构建和发布说明。
+1. Open a paper page supported by a Zotero translator.
+2. PaperLoop recognizes the page and opens the reading panel when automatic opening is enabled.
+3. Write or revise the thought while continuing to read and scroll.
+4. Choose the target Zotero library and collection.
+5. Click once to save or reuse the paper and synchronize the thought as a Zotero child note.
+6. Return later, continue writing, and synchronize the same note again.
 
-构建方式见 [构建与测试](docs/BUILD_AND_TEST.md)，架构说明见 [架构](docs/ARCHITECTURE.md)。
+Repeated clicks and network retries are idempotent. Within one Zotero library, an existing DOI is reused and the same item may be placed in several collections. Different Zotero libraries use independent items because an item key cannot span libraries.
 
-## 已知边界
+## Current release
 
-- 页面必须能被 Zotero Translator 识别；
-- 全文能否下载取决于登录、机构权限、网站规则和风控；
-- 同一个 Zotero itemKey 不能跨 Library，跨 Library 会有独立条目；
-- 当前 Release 不提供签名商店安装或可靠的自动更新通道；
-- 这是测试发布，请先在可备份的 Zotero 环境中验证。
+| Component | Version | Verified environment |
+|---|---:|---|
+| PaperLoop browser extension | `0.3.10` | Microsoft Edge / Chromium, Manifest V3 |
+| PaperLoop DOI Bridge | `0.1.19` | Zotero 7.0.x |
 
-## 许可证与署名
+Download both matching files from the [latest release](https://github.com/jinkeguo/PaperLoop/releases/latest), then follow [Installation and acceptance](docs/INSTALLATION.md).
 
-本仓库基于 Zotero Connector 上游提交 `48ad1fe09defb770f83a3268cf8ebe72ab9aba52` 开发，按 GNU Affero General Public License v3 发布。完整文本见 [COPYING](COPYING)，署名和商标说明见 [NOTICE.md](NOTICE.md)。
+## Reliability boundaries
+
+- A supported Zotero translator is required; PaperLoop does not create a guessed item when the page is not recognized.
+- PDF availability still depends on publisher login, institutional access, website rules, and the current browser session.
+- Existing items without a PDF can be checked again; HTML login pages are rejected instead of being stored as PDFs.
+- Zotero stores synchronized items, attachments, and notes. Browser storage protects drafts and recovery state, but is not a replacement for Zotero synchronization or backups.
+- An agent or language-model API is not required for recognition, saving, deduplication, or note synchronization.
+- This is an experimental release and currently uses developer-mode browser installation.
+
+## Documentation
+
+- [Installation and acceptance](docs/INSTALLATION.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Privacy and security boundaries](docs/PRIVACY.md)
+- [Build and test](docs/BUILD_AND_TEST.md)
+- [Contributing](CONTRIBUTING.md)
+
+## License and attribution
+
+PaperLoop is based on Zotero Connector upstream commit `48ad1fe09defb770f83a3268cf8ebe72ab9aba52` and is distributed under the GNU Affero General Public License v3. See [COPYING](COPYING) and [NOTICE.md](NOTICE.md).
