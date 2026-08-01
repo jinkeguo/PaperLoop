@@ -1,0 +1,12 @@
+build.log
+build
+cert
+config.sh
+dist
+node_modules
+*.xpi
+*.zip
+.idea/
+.vscode/
+coverage/
+paperloop-release/

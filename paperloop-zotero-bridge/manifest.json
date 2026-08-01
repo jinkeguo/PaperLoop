@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "PaperLoop DOI Bridge",
+  "version": "0.1.19",
+  "description": "Resolve DOI duplicates and append PaperLoop thoughts as Zotero child notes.",
+  "homepage_url": "https://github.com/zotero/zotero",
+  "applications": {
+    "zotero": {
+      "id": "paperloop-doi-bridge@paperloop.app",
+      "update_url": "https://paperloop.invalid/zotero/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "7.0.*"
+    }
+  }
+}
