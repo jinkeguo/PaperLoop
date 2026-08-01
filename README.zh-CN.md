@@ -11,7 +11,9 @@ PaperLoop 是一个**在 Zotero Connector 基础上修改开发**的论文阅读
 
 > PaperLoop 是独立维护的修改版本，不是 Zotero 官方产品，也未获得 Zotero 官方背书。
 
-![PaperLoop 在已识别论文页面旁的阅读侧栏](docs/assets/paperloop-interface.png)
+[![PaperLoop 在已识别论文页面旁的阅读侧栏](docs/assets/paperloop-interface.png)](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)
+
+**[▶ 观看 32 秒工作流演示](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)** — 展示边看边写、切换侧栏语言、选择 Zotero 保存位置、一键保存以及最小化与恢复。视频使用真实的 0.3.11 界面和隔离的演示数据，不会修改 Zotero 文库。
 
 ## PaperLoop 增加了什么
 

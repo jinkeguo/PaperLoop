@@ -11,7 +11,9 @@ PaperLoop is a research-reading extension **built by modifying Zotero Connector*
 
 > PaperLoop is an independent modified distribution. It is not an official Zotero product and is not endorsed by Zotero.
 
-![PaperLoop beside a detected research paper](docs/assets/paperloop-interface.png)
+[![PaperLoop beside a detected research paper](docs/assets/paperloop-interface.png)](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)
+
+**[▶ Watch the 32-second workflow demo](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)** — write while reading, switch the panel language, choose a Zotero destination, save, and minimize or restore the panel. The recording uses the real 0.3.11 interface with isolated demo data and does not modify a Zotero library.
 
 ## What PaperLoop adds
 

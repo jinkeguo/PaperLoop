@@ -7,6 +7,7 @@ Release date: 2026-08-01
 - `PaperLoop-Browser-Extension-0.3.11.zip`
 - `PaperLoop-DOI-Bridge-0.1.19.xpi`
 - `PaperLoop-0.3.11-friend-test.zip`
+- `PaperLoop-0.3.11-demo.mp4`
 
 ## What changed
 
