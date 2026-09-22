@@ -7,3 +7,7 @@
 *.sh text eol=lf
 *.xpi binary
 *.zip binary
+
+# Preserve the tested runtime snapshots, including supplied Translator files.
+browser-extension/** -text
+zotero-plugin/** -text

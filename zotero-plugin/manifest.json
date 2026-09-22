@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "PaperLoop for Zotero",
+  "version": "0.5.4",
+  "description": "Collect papers, add editable PDF excerpts, mention other literature, and export relation data.",
+  "homepage_url": "https://github.com/zotero/zotero",
+  "applications": {
+    "zotero": {
+      "id": "paperloop-doi-bridge@paperloop.app",
+      "update_url": "https://paperloop.invalid/zotero/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "9.0.*"
+    }
+  }
+}

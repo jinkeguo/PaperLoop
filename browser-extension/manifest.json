@@ -1,0 +1,178 @@
+{
+  "name": "PaperLoop for Zotero Connector",
+  "manifest_version": 3,
+	"version": "0.3.27",
+  "description": "Keep a per-paper reading sidebar and save trusted Zotero references with PaperLoop thought notes",
+  "default_locale": "en",
+  "action": {
+    "default_icon": {
+      "16": "images/treeitem-webpage-gray.png",
+      "32": "images/treeitem-webpage-gray@2x.png",
+      "48": "images/treeitem-webpage-gray@48px.png"
+    },
+    "default_title": "PaperLoop：打开/收起文献侧栏"
+  },
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "permissions": [
+    "tabs",
+    "activeTab",
+    "contextMenus",
+    "cookies",
+    "scripting",
+    "offscreen",
+    "webRequest",
+    "declarativeNetRequest",
+    "webNavigation",
+    "storage"
+  ],
+  "declarative_net_request": {
+    "rule_resources": [
+      {
+        "id": "styleIntercept",
+        "enabled": true,
+        "path": "styleInterceptRules.json"
+      }
+    ]
+  },
+  "optional_permissions": [
+    "management",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "run_at": "document_start",
+      "js": [
+        "browser-polyfill.js",
+        "zotero_config.js",
+        "zotero.js",
+        "translate/promise.js",
+        "utilities/date.js",
+        "utilities/openurl.js",
+        "utilities/xregexp-all.js",
+        "utilities/xregexp-unicode-zotero.js",
+        "utilities/resource/zoteroTypeSchemaData.js",
+        "utilities/utilities.js",
+        "utilities/utilities_item.js",
+        "utilities.js",
+        "http.js",
+        "proxy.js",
+        "translate/debug.js",
+        "utilities/schema.js",
+        "translate/rdf/init.js",
+        "translate/rdf/uri.js",
+        "translate/rdf/term.js",
+        "translate/rdf/identity.js",
+        "translate/rdf/rdfparser.js",
+        "translate/translation/translate.js",
+        "translate/translation/translate_item.js",
+        "translate/translator.js",
+        "translate/utilities_translate.js",
+        "paperloop-auto-display-policy.js",
+        "inject/http.js",
+        "inject/sandboxManager.js",
+        "translateWeb.js",
+        "itemSaver.js",
+        "inject/pageSaving.js",
+        "integration/connectorIntegration.js",
+        "cachedTypes.js",
+        "schema.js",
+        "messages.js",
+        "zoteroFrame.js",
+        "messaging_inject.js",
+        "inject/progressWindow_inject.js",
+        "inject/modalPrompt_inject.js",
+        "lib/dompurify.js",
+        "inject/paperLoopImages_inject.js",
+        "inject/paperLoopGallery_inject.js",
+        "inject/paperLoopFlow_inject.js",
+        "inject/paperLoopSidebar_inject.js",
+        "messagingGeneric.js",
+        "i18n.js",
+        "singlefile.js",
+        "api.js",
+        "inject/virtualOffscreenTranslate.js",
+        "inject/inject.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://docs.google.com/document/*"
+      ],
+      "run_at": "document_start",
+      "js": [
+        "zotero-google-docs-integration/kixAddZoteroMenu.js"
+      ]
+    },
+    {
+      "matches": [
+        "https://docs.google.com/document/*"
+      ],
+      "run_at": "document_end",
+      "js": [
+        "zotero-google-docs-integration/googleDocs.js",
+        "zotero-google-docs-integration/client.js",
+        "zotero-google-docs-integration/clientAppsScript.js",
+        "zotero-google-docs-integration/document.js"
+      ]
+    }
+  ],
+  "sandbox": {
+    "pages": [
+      "offscreen/offscreenSandbox.html"
+    ]
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "images/*",
+        "images/paperloop-themes/*",
+        "progressWindow/progressWindow.html",
+        "modalPrompt/modalPrompt.html",
+        "confirm/confirm.html",
+        "test/data/journalArticle-single.html",
+        "browserAttachmentMonitor/browserAttachmentMonitor.html",
+        "lib/SingleFile/single-file-hooks-frames.js",
+        "inject/pageSaving.js",
+        "translateWeb.js",
+        "itemSaver.js"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "homepage_url": "https://www.zotero.org/",
+  "icons": {
+    "16": "Icon-16.png",
+    "32": "Icon-32.png",
+    "64": "Icon-64.png",
+    "128": "Icon-128.png"
+  },
+  "options_ui": {
+    "page": "preferences/preferences.html",
+    "open_in_tab": true
+  },
+  "commands": {
+    "_execute_action": {
+      "description": "打开或收起 PaperLoop 文献侧栏",
+      "suggested_key": {
+        "default": "Ctrl+Shift+S"
+      }
+    }
+  },
+  "minimum_chrome_version": "88"
+}

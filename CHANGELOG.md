@@ -1,5 +1,25 @@
 # Changelog
 
+## PaperLoop 0.3.27 / Zotero 0.5.4 — 2026-09-22
+
+### 中文
+
+- 图文一起保存：右键收藏网页图片，支持多图管理，文字和图片一次保存到 Zotero。
+- Zotero 笔记两栏排版：左侧文字、右侧对应图片，方便对照阅读。
+- 界面与主题更新：加入奶牛猫、柴犬等摄影主题，支持明暗切换和手写风格名称，面板可拖动、调整大小。
+- 适配 Zotero 9：改进笔记同步、图片保存和面板显示，修复未填写思考时无法保存笔记的问题。
+- 修复回退保存：修复切换备用 Translator 后，部分文献无法继续保存图文笔记的问题。
+
+### English
+
+- Save text and images together: collect webpage images with a right-click and save them with your notes to Zotero in one action.
+- Two-column Zotero notes: read text on the left and associated images on the right.
+- Refreshed interface and photographic themes, with light/dark modes, a handwritten-style name, and a draggable, resizable panel.
+- Zotero 9 support: improved note synchronization, image saving, and panel display; fixed note creation when the thought field is empty.
+- Fixed cases where switching to a backup translator prevented further text-and-image note saving.
+
+[Downloads and release notes / 下载与更新说明](docs/releases/v0.3.27.md)
+
 ## PaperLoop Connector 0.3.11 / DOI Bridge 0.1.19 — 2026-08-01
 
 - Added an `EN` / `中` title-bar control that switches the complete reading panel between English and Simplified Chinese.

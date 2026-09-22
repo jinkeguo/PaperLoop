@@ -1,5 +1,7 @@
 # 架构
 
+当前发布入口为 `browser-extension/` 与 `zotero-plugin/`。以下保留原有工作流说明；新增图文笔记使用 `/connector/paperloop/notebook`，无 DOI 的回退题录通过原生 Connector 保存会话确定条目身份，不按标题猜测。图片存为原生附件，表格用于笔记两栏展示。
+
 ## 设计原则
 
 1. Zotero 是条目、附件和笔记的唯一可信来源；

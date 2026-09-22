@@ -1,0 +1,6 @@
+DOMPurify 3.2.5
+Copyright Cure53 and other contributors
+https://github.com/cure53/DOMPurify/tree/3.2.5
+
+Used unchanged to sanitize note HTML. Distributed under the Apache License 2.0
+option offered by the upstream license. See Apache-2.0.txt in this directory.

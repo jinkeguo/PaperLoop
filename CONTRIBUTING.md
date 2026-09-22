@@ -17,11 +17,11 @@
 
 ## 提交代码
 
-1. 基于 `paperloop-0.3.11` 或后续 PaperLoop 分支创建功能分支；
+1. 基于 `main` 创建功能分支；当前代码位于 `browser-extension/` 与 `zotero-plugin/`；
 2. 保持 Zotero Translator 为题录可信来源；
 3. 新写入路径必须考虑重复点击、并发请求、缓存缺失与跨 Library；
 4. 对行为变更补充自动化测试；
-5. 运行 `npm test` 和相关专项测试；
+5. 运行 `node scripts/test-paperloop-release.cjs` 和相关专项测试；旧上游基线的 `npm test` 不代替当前版本测试；
 6. 不提交 `build/`、`node_modules/`、ZIP/XPI 或本机数据。
 
 贡献代码需与仓库 AGPLv3 许可证兼容。

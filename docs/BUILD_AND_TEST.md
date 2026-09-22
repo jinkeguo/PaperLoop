@@ -1,62 +1,50 @@
-# 构建与测试
+# 构建与测试 / Build and test
 
-## 上游基线
+## 当前源码 / Current source
 
-本分支基于 Zotero Connector 提交：
+- `browser-extension/`: loadable browser extension 0.3.27.
+- `zotero-plugin/`: Zotero plugin 0.5.4.
+- Original `src/`, `lib/`, `paperloop-zotero-bridge/`, `build.sh` and `gulpfile.js` retain the historical 0.3.11 upstream build baseline. The current release packages the supplied runtime source directly; it does not recompile or replace the Translator engine.
 
-```text
-48ad1fe09defb770f83a3268cf8ebe72ab9aba52
-```
+## 打包 / Package
 
-`upstream` 远端应指向 `https://github.com/zotero/zotero-connectors.git`。不要向上游远端直接推送 PaperLoop 发布分支。
-
-## 浏览器扩展
-
-构建依赖与 Zotero Connector 上游一致：Git、Node.js/npm、Bash、rsync 和顶层 Git submodule。
-
-```bash
-git submodule update --init
-npm install
-./build.sh -p b -v 0.3.11
-```
-
-构建结果位于 `build/browserExt`。在 Edge/Chrome 开发人员模式中加载该目录。
-
-调试构建：
-
-```bash
-./build.sh -p b -v 0.3.11 -d
-```
-
-## Zotero Bridge
-
-Bridge 不需要编译；XPI 是 `paperloop-zotero-bridge/` 下运行文件的 ZIP 容器。仓库提供 PowerShell 辅助脚本：
+Requires PowerShell 7 / .NET and Node.js for regression checks.
 
 ```powershell
-.\scripts\build-paperloop-bridge.ps1
+node scripts/test-paperloop-release.cjs
+./scripts/build-paperloop-release.ps1 -OutputDirectory paperloop-release/verified
+./scripts/audit-paperloop-release.ps1
 ```
 
-脚本会生成 `paperloop-release/PaperLoop-DOI-Bridge-0.1.19.xpi`，若目标已存在则停止，避免无提示覆盖。
+Packages are created once, with fixed ZIP entry timestamps, at:
 
-## 测试
+- `paperloop-release/verified/PaperLoop-Browser-Extension-0.3.27.zip`
+- `paperloop-release/verified/PaperLoop-for-Zotero-0.5.4.xpi`
 
-安装依赖后运行 Connector 测试：
+The builder excludes test files and local scripts. The audit compares every archive entry against its source. Existing output files are not overwritten; use another output subdirectory for a new build.
 
-```bash
-npm test
+## 回归 / Regression checks
+
+```powershell
+node scripts/test-paperloop-release.cjs
+node scripts/test-paperloop-browser.cjs
+./scripts/test-paperloop-native.ps1
 ```
 
-Bridge 逻辑测试：
+- Node regression runner: six browser test files and four native plugin test files.
+- Translator fallback integration: 9 cases using the production fallback/save glue and in-memory transport/library doubles, including no-DOI metadata, prior standard-save sessions, existing-item reuse, failed saves, and detection of an older native plugin.
+- Native session identity validation: 8 cases covering missing sessions, unrelated keys, deleted/non-regular items, wrong libraries, and DOI mismatch.
+- Headless Edge notebook suite: 75 DOM, IndexedDB, image queue, synchronization, editing, theme, layout, drag/resize and round-trip checks. This suite uses test-only Zotero objects.
+- Real Zotero 9.0.6: 10 isolated runtime checks with the packaged XPI, including actual Connector session saves without a DOI, collection placement, native note identity, embedded-image attachment creation, repeated note reuse, and native 55:45 column geometry.
 
-```bash
-node paperloop-zotero-bridge/test-paperloop.mjs
-```
+The Edge runner defaults to the Windows Edge installation path and uses a new temporary browser profile. The Zotero runner defaults to `C:/Program Files/Zotero/zotero.exe`; override with `-ZoteroPath` if needed. It creates a uniquely named test profile/data directory inside ignored `paperloop-release/`, and the test add-on refuses to run against a personal data directory. A first run may initialize translators for longer than the launcher's 55-second reporting window; inspect the printed test directory for `report.json`.
 
-0.3.11 发布前已通过：
+## 验证范围 / Scope
 
-- Connector 完整自动化：131/131；
-- PDF/认证回退专项：16/16；
-- 正式包独立 Chromium HTML→PDF 烟雾测试；
-- 正式包、Edge 加载目录与构建目录 280 文件一致性检查。
+The new regressions verify the fallback-to-save integration; named site scenarios are controlled fixtures, not live website acceptance tests. Site access, publisher responses, and downloaded translator versions can change independently. No personal Zotero library, cookies, or private notes are included in the source or release assets.
 
-真实网站验收仍需使用测试者自己的合法登录和全文权限。
+The supplied `translate/`, `utilities/`, `offscreen/` code and extraction helpers were compared unchanged against the prior tested browser source. This release changes PaperLoop session/identity glue, not translator definitions or the compiler.
+
+## Historical baseline
+
+Upstream Zotero Connector commit: `48ad1fe09defb770f83a3268cf8ebe72ab9aba52`. Earlier 0.3.11 release verification included 131 Connector tests; this is historical evidence, not a claim that the old `npm test` suite was rerun for 0.3.27.

@@ -1,91 +1,53 @@
-<p align="right">
-  <a href="./README.md"><img alt="English" src="https://img.shields.io/badge/README-English-1f6feb"></a>
-  <a href="./README.zh-CN.md"><img alt="简体中文" src="https://img.shields.io/badge/README-简体中文-2da44e"></a>
-</p>
+[English](README.md) | [简体中文](README.zh-CN.md)
 
 # PaperLoop
 
-**Keep reading. Capture the thought. Save the paper and the note to Zotero.**
+Keep reading. Capture text and images. Save the paper and your notes to Zotero.
 
-PaperLoop is a research-reading extension **built by modifying Zotero Connector**. It retains Zotero Connector's page detection, translator, metadata, and attachment pipeline, while adding a persistent reading panel, local thought drafts, automatic article-page opening, and a coordinated save-to-Zotero workflow. The result is a continuous path from reading and drafting to a structured Zotero item and an editable child note.
+PaperLoop adds a reading notebook to Zotero Connector's metadata and attachment workflow. Collect webpage images with a right-click, write alongside the paper, and save both to a Zotero child note.
 
-> PaperLoop is an independent modified distribution. It is not an official Zotero product and is not endorsed by Zotero.
+## What's new
 
-[![PaperLoop beside a detected research paper](docs/assets/paperloop-interface.png)](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)
+Browser extension **0.3.27** · Zotero plugin **0.5.4**
 
-**[▶ Watch the 32-second workflow demo](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)** — write while reading, switch the panel language, choose a Zotero destination, save, and minimize or restore the panel. The recording uses the real 0.3.11 interface with isolated demo data and does not modify a Zotero library.
+- Save text and multiple images together in one action.
+- Read Zotero notes with text on the left and associated images on the right.
+- Choose photographic themes, light/dark modes, and a draggable, resizable panel with a handwritten-style name.
+- Zotero 9 support, with improvements to note synchronization, image saving, panel display, and empty-thought note creation.
+- Fixed note saving after translator fallback, including metadata without a DOI.
 
-## What PaperLoop adds
+[Full release notes / 更新说明](docs/releases/v0.3.27.md)
 
-### Write while the paper stays visible
+## Download and install
 
-The PaperLoop panel stays beside the article while the page remains scrollable. You can record questions, interpretations, and writing ideas continuously instead of opening a modal window or switching to another application.
+1. Download [PaperLoop Browser Extension 0.3.27](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.27/PaperLoop-Browser-Extension-0.3.27.zip) and [PaperLoop for Zotero 0.5.4](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.27/PaperLoop-for-Zotero-0.5.4.xpi).
+2. Install the XPI through Zotero's Plugins manager and restart Zotero.
+3. Extract the browser ZIP, open Edge/Chrome's extensions page, enable developer mode, and load the folder containing `manifest.json`.
 
-### Reduce capture to one coordinated action
+Already using PaperLoop? Keep the existing browser extension directory, replace its files, reload the extension, and refresh open webpages. Save an existing note again to apply the two-column layout.
 
-Select the Zotero library and collection, write the thought, and save once. PaperLoop coordinates bibliographic capture, available attachments, collection placement, and thought notes, simplifying the Zotero Connector save workflow and folding thought synchronization into the same action.
+[Installation and upgrade guide](docs/INSTALLATION.md) · [Latest release](https://github.com/jinkeguo/PaperLoop/releases/latest)
 
-### Protect unfinished thoughts in the browser
+## Source and development
 
-Unsynchronized text is stored locally by paper identity. Closing and reopening the page restores the draft. After synchronization, Zotero is the authoritative copy; DOI-based recovery can reconnect the browser to the Zotero item and PaperLoop note if browser-side association data is lost.
-
-### Open automatically on recognized paper pages
-
-When automatic opening is enabled, PaperLoop expands after Zotero's translator system recognizes a research-paper page. Navigating the same tab to another paper refreshes the panel, while separate tabs keep separate drafts. Automatic opening can be disabled, and the panel can be minimized or closed at any time.
-
-### Switch the reading panel between Chinese and English
-
-Use the `EN` / `中` button in the PaperLoop title bar to switch the entire panel immediately, including detection status, Zotero destination controls, thought fields, save feedback, and recovery messages. The preference is stored locally for the extension and survives page changes, browser restarts, and in-place upgrades without changing the active paper, draft, or Zotero destination.
-
-## What comes from Zotero Connector
-
-PaperLoop does not replace Zotero Connector's extraction engine and does not visually guess incomplete metadata.
-
-| Component | Responsibility |
-|---|---|
-| **Zotero Connector foundation** | Detects supported publication pages through Zotero translators; extracts bibliographic metadata; discovers and saves supported attachments. |
-| **PaperLoop browser workflow** | Provides the persistent reading panel, per-paper browser drafts, automatic opening, Zotero destination selection, one-click orchestration, and visible success or partial-failure feedback. |
-| **PaperLoop DOI Bridge for Zotero 7** | Queries existing Zotero items by DOI, reuses items inside the selected library, assigns collections, updates one PaperLoop child note, restores associations, and supports verified PDF backfill. |
-
-The browser extension is based on [zotero/zotero-connectors](https://github.com/zotero/zotero-connectors). Zotero desktop integration builds on the APIs and data model provided by [zotero/zotero](https://github.com/zotero/zotero).
-
-## Reading-to-Zotero workflow
-
-1. Open a paper page supported by a Zotero translator.
-2. PaperLoop recognizes the page and opens the reading panel when automatic opening is enabled.
-3. Write or revise the thought while continuing to read and scroll.
-4. Choose the target Zotero library and collection.
-5. Click once to save or reuse the paper and synchronize the thought as a Zotero child note.
-6. Return later, continue writing, and synchronize the same note again.
-
-Repeated clicks and network retries are idempotent. Within one Zotero library, an existing DOI is reused and the same item may be placed in several collections. Different Zotero libraries use independent items because an item key cannot span libraries.
-
-## Current release
-
-| Component | Version | Verified environment |
-|---|---:|---|
-| PaperLoop browser extension | `0.3.11` | Microsoft Edge / Chromium, Manifest V3 |
-| PaperLoop DOI Bridge | `0.1.19` | Zotero 7.0.x |
-
-Download both matching files from the [latest release](https://github.com/jinkeguo/PaperLoop/releases/latest), then follow [Installation and acceptance](docs/INSTALLATION.md).
-
-## Reliability boundaries
-
-- A supported Zotero translator is required; PaperLoop does not create a guessed item when the page is not recognized.
-- PDF availability still depends on publisher login, institutional access, website rules, and the current browser session.
-- Existing items without a PDF can be checked again; HTML login pages are rejected instead of being stored as PDFs.
-- Zotero stores synchronized items, attachments, and notes. Browser storage protects drafts and recovery state, but is not a replacement for Zotero synchronization or backups.
-- An agent or language-model API is not required for recognition, saving, deduplication, or note synchronization.
-- This is an experimental release and currently uses developer-mode browser installation.
+- [`browser-extension/`](browser-extension): current loadable browser code and local assets, version 0.3.27.
+- [`zotero-plugin/`](zotero-plugin): current Zotero plugin source, version 0.5.4.
+- [Build and test](docs/BUILD_AND_TEST.md): packaging and regression checks for this release.
+- The original `src/`, `lib/`, `paperloop-zotero-bridge/` and upstream build scripts are retained as the historical 0.3.11 development baseline; they are not the current release entry point.
 
 ## Documentation
 
-- [Installation and acceptance](docs/INSTALLATION.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Privacy and security boundaries](docs/PRIVACY.md)
-- [Build and test](docs/BUILD_AND_TEST.md)
+- [Changelog](CHANGELOG.md)
+- [Credits](docs/CREDITS.md)
+- [Privacy](docs/PRIVACY.md)
+- [Architecture baseline](docs/ARCHITECTURE.md)
 - [Contributing](CONTRIBUTING.md)
+- [Earlier 0.3.11 workflow demo](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.11/PaperLoop-0.3.11-demo.mp4)
 
-## License and attribution
+## About
 
-PaperLoop is based on Zotero Connector upstream commit `48ad1fe09defb770f83a3268cf8ebe72ab9aba52` and is distributed under the GNU Affero General Public License v3. See [COPYING](COPYING) and [NOTICE.md](NOTICE.md).
+PaperLoop is an independent modified distribution of [Zotero Connector](https://github.com/zotero/zotero-connectors), not an official Zotero product. It retains the supplied translator and extraction pipeline. Website capture and full-text access depend on the site's translator and your access permissions.
+
+The current release was checked with Microsoft Edge and Zotero 9.0.6. See [build and test](docs/BUILD_AND_TEST.md) for verification details.
+
+Code is distributed under AGPLv3; see [COPYING](COPYING) and [NOTICE.md](NOTICE.md). Theme image sources and their separate licenses are recorded in [SOURCES.md](browser-extension/images/paperloop-themes/SOURCES.md).
