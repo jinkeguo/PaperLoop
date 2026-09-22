@@ -6,6 +6,14 @@ Keep reading. Capture text and images. Save the paper and your notes to Zotero.
 
 PaperLoop adds a reading notebook to Zotero Connector's metadata and attachment workflow. Collect webpage images with a right-click, write alongside the paper, and save both to a Zotero child note.
 
+## Interface preview
+
+Screenshots of the actual browser interface with isolated demo content.
+
+| Light theme | Dark theme | Image collection |
+| --- | --- | --- |
+| ![PaperLoop reading notes in the light theme](docs/assets/paperloop-0.3.27-light.png) | ![PaperLoop reading notes in the dark theme](docs/assets/paperloop-0.3.27-dark.png) | ![PaperLoop multi-image collection](docs/assets/paperloop-0.3.27-gallery.png) |
+
 ## What's new
 
 Browser extension **0.3.27** · Zotero plugin **0.5.4**

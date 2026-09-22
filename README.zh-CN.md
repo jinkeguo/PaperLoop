@@ -6,6 +6,14 @@
 
 PaperLoop 在 Zotero Connector 的题录与附件采集功能上加入阅读笔记。右键收藏网页图片，边读边写，再将图文一起保存为 Zotero 子笔记。
 
+## 界面预览
+
+浏览器实际界面截图，使用独立演示内容。
+
+| 浅色主题 | 深色主题 | 图片收藏 |
+| --- | --- | --- |
+| ![PaperLoop 浅色主题阅读笔记](docs/assets/paperloop-0.3.27-light.png) | ![PaperLoop 深色主题阅读笔记](docs/assets/paperloop-0.3.27-dark.png) | ![PaperLoop 多图收藏界面](docs/assets/paperloop-0.3.27-gallery.png) |
+
 ## 本次更新
 
 浏览器扩展 **0.3.27** · Zotero 插件 **0.5.4**
