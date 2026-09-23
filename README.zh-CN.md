@@ -16,29 +16,27 @@ PaperLoop 在 Zotero Connector 的题录与附件采集功能上加入阅读笔�
 
 ## 本次更新
 
-浏览器扩展 **0.3.27** · Zotero 插件 **0.5.4**
+浏览器扩展 **0.3.28** · Zotero 插件 **0.5.4**
 
-- 文字与多张图片一次保存到 Zotero。
-- Zotero 笔记左侧文字、右侧对应图片，方便对照阅读。
-- 加入摄影主题、明暗切换和手写风格名称，面板支持拖动与调整大小。
-- 适配 Zotero 9，改进笔记同步、图片保存和面板显示，修复未填写思考时无法保存笔记的问题。
-- 修复切换备用 Translator 后的笔记保存，支持没有 DOI 的题录。
+- 浏览器与 Zotero 的修改同步到同一篇笔记，不同段落的修改自动合并。
+- 修复普通编辑后误报“两端内容不一致”。
+- 修复多张图片重新打开文献后缩略图不显示。
 
-[完整更新说明 / Release notes](docs/releases/v0.3.27.md)
+[完整更新说明 / Release notes](docs/releases/v0.3.28.md)
 
 ## 下载与安装
 
-1. 下载[浏览器扩展 0.3.27](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.27/PaperLoop-Browser-Extension-0.3.27.zip)和 [Zotero 插件 0.5.4](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.27/PaperLoop-for-Zotero-0.5.4.xpi)。
+1. 下载[完整分享包](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.28/PaperLoop-0.3.28-Share.zip)，或者分别下载[浏览器扩展 0.3.28](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.28/PaperLoop-Browser-Extension-0.3.28.zip)和 [Zotero 插件 0.5.4](https://github.com/jinkeguo/PaperLoop/releases/download/v0.3.28/PaperLoop-for-Zotero-0.5.4.xpi)。
 2. 在 Zotero 插件管理器中从文件安装 XPI，重启 Zotero。
 3. 解压浏览器 ZIP，进入 Edge/Chrome 扩展管理页，开启开发者模式，加载包含 `manifest.json` 的文件夹。
 
-已有 PaperLoop？保留原浏览器扩展目录，用新版文件覆盖后重新加载扩展，并刷新网页。已有笔记重新保存后即可应用两栏布局。
+已有 PaperLoop？保留原浏览器扩展目录，用新版文件覆盖后重新加载扩展，并刷新网页。Zotero 插件若不是 0.5.4，请一并更新。
 
 [安装与更新指南](docs/INSTALLATION.md) · [最新发布](https://github.com/jinkeguo/PaperLoop/releases/latest)
 
 ## 源码与开发
 
-- [`browser-extension/`](browser-extension)：当前可直接加载的浏览器代码和本地素材，版本 0.3.27。
+- [`browser-extension/`](browser-extension)：当前可直接加载的浏览器代码和本地素材，版本 0.3.28。
 - [`zotero-plugin/`](zotero-plugin)：当前 Zotero 插件源码，版本 0.5.4。
 - [构建与测试](docs/BUILD_AND_TEST.md)：本次版本的打包方法与回归检查。
 - 原有 `src/`、`lib/`、`paperloop-zotero-bridge/` 和上游构建脚本作为 0.3.11 历史开发基线保留，不是当前版本的发布入口。

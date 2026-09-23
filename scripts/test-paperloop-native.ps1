@@ -1,4 +1,4 @@
-param([string]$ZoteroPath = 'C:/Program Files/Zotero/zotero.exe', [string]$Package = 'paperloop-release/verified/PaperLoop-for-Zotero-0.5.4.xpi')
+param([string]$ZoteroPath = 'C:/Program Files/Zotero/zotero.exe', [string]$Package = 'paperloop-release/verified-0328/PaperLoop-for-Zotero-0.5.4.xpi')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -21,7 +21,10 @@ $prefs | Set-Content -LiteralPath (Join-Path $profile 'user.js') -Encoding utf8
 Copy-Item -LiteralPath (Join-Path $repo $Package) -Destination (Join-Path $extensions 'paperloop-doi-bridge@paperloop.app.xpi')
 $stream=[IO.File]::Open((Join-Path $extensions 'paperloop-release-test@local.invalid.xpi'),[IO.FileMode]::CreateNew)
 $zip=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create)
-try {foreach($file in Get-ChildItem -LiteralPath (Join-Path $repo 'test/paperloop-native') -File){[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$file.Name) | Out-Null}} finally {$zip.Dispose();$stream.Dispose()}
+try {
+    foreach($file in Get-ChildItem -LiteralPath (Join-Path $repo 'test/paperloop-native') -File){[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,$file.FullName,$file.Name) | Out-Null}
+    foreach($name in @('paperLoopFlow_inject.js','paperLoopSync_inject.js')){[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,(Join-Path $repo "browser-extension/inject/$name"),$name) | Out-Null}
+} finally {$zip.Dispose();$stream.Dispose()}
 $process=Start-Process -FilePath $ZoteroPath -ArgumentList @('-no-remote','-profile',('"'+$profile+'"'),'-ZoteroDebugText') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $root 'stdout.log') -RedirectStandardError (Join-Path $root 'stderr.log')
 Write-Output "Isolated test root: $root; PID: $($process.Id)"
 $start=Get-Date

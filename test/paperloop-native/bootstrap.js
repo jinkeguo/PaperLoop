@@ -1,5 +1,5 @@
 /* Test-only: refuses to run against any personal profile or data directory. */
-async function startup() {
+async function startup(addonData) {
   await Zotero.initializationPromise;
   const profile=Services.dirsvc.get('ProfD',Ci.nsIFile),root=profile.parent;
   const normalize=value=>String(value).replace(/\\/g,'/').toLowerCase();
@@ -47,7 +47,36 @@ async function startup() {
     await editor._initPromise;await Zotero.Promise.delay(500);
     const iw=editor._editorInstance._iframeWindow.wrappedJSObject,cells=[...iw.document.querySelector('.ProseMirror table').rows[0].cells];
     const widths=cells.map(cell=>cell.getBoundingClientRect().width);result.widths=widths;
-    check(Math.abs(widths[0]/widths[1]-330/270)<.12&&iw.document.querySelector('.ProseMirror img'),'real native editor retains left-text/right-image layout');
+    check(cells.length===2&&iw.document.querySelector('.ProseMirror img'),'real native editor retains two-column structure and image');
+    if(widths.every(width=>width>0))check(Math.abs(widths[0]/widths[1]-330/270)<.12,'visible native columns retain 55:45 geometry');
+    else result.geometryNotMeasured='Test window is hidden; DOM/content checks only';
+    editor.remove();editor=null;
+    const scope={Zotero:{},document:new win.DOMParser().parseFromString('<body></body>','text/html'),DOMParser:win.DOMParser,crypto:win.crypto};
+    for(const name of ['paperLoopFlow_inject.js','paperLoopSync_inject.js'])Services.scriptloader.loadSubScript(addonData.rootURI+name,scope);
+    const keys=[new win.DOMParser().parseFromString(note.getNote(),'text/html').querySelector('img').getAttribute('data-attachment-key')];
+    for(const color of ['#ad623b','#6487a3']){canvas.getContext('2d').fillStyle=color;canvas.getContext('2d').fillRect(0,0,160,100);state=await request(Notebook,{...nativeTarget,action:'add-image',base64:canvas.toDataURL('image/png').split(',')[1],width:160,height:100,caption:'Sync fixture'});keys.push(state.imageKey);}
+    const makeFlow=html=>{const flow=Object.create(scope.Zotero.PaperLoopFlow.prototype);Object.assign(flow,{editor:scope.document.createElement('div'),store:scope.document.createElement('div'),mapping:{},update(){}});flow.editor.innerHTML=html;flow.reset();return flow;};
+    const source='<div class="paperloop-entry pl-entry-native-test pl-ref-'+keys[0]+' pl-ref-'+keys[1]+'"><h3>First paragraph</h3><p><strong>Native base text</strong></p></div><div class="paperloop-entry pl-ref-'+keys[2]+'"><h3>Second paragraph</h3><p>Browser base text</p></div>'+keys.map((key,i)=>'<p><img data-attachment-key="'+key+'" alt="Test image '+i+'" width="160" height="100"></p>').join('');
+    state=await request(Notebook,{...nativeTarget,action:'save',baseHTML:state.noteHTML,noteHTML:'<div data-schema-version="9"><h1>PaperLoop 思考</h1>'+makeFlow(source).serialized()+'</div>'});
+    const baseForSync=state.noteHTML;
+    editor=win.document.createXULElement('note-editor');editor.style.cssText='position:fixed;left:0;top:0;width:1000px;height:800px';win.document.documentElement.append(editor);editor.mode='edit';editor.item=note;await editor._initPromise;await Zotero.Promise.delay(700);
+    const syncWindow=editor._editorInstance._iframeWindow.wrappedJSObject;
+    const normalized=syncWindow.getDataSync(false).html;
+    result.sync={baseHTML:baseForSync,normalizedHTML:normalized};
+    check(scope.Zotero.PaperLoopSync.equal(baseForSync,normalized),'actual native normalization is semantically equal to browser HTML');
+    const core=syncWindow._currentEditorInstance._editorCore,json=JSON.parse(JSON.stringify(core.view.state.doc.toJSON()));let insertion;
+    function locate(node,pos,isRoot=false){if(node.type==='text'){if(insertion===undefined&&node.text.includes('Native base text'))insertion=pos+node.text.length;return node.text.length;}let size=0;for(const child of node.content||[])size+=locate(child,pos+(isRoot?0:1)+size);return node.content?size+2:1;}
+    locate(json,0,true);check(insertion!==undefined,'actual native editable paragraph located');
+    core.view.dispatch(core.view.state.tr.insertText(' + native change',insertion));await editor._editorInstance._save(JSON.parse(JSON.stringify(syncWindow.getDataSync(false))));await Zotero.Promise.delay(200);
+    const nativeChanged=note.getNote(),browserChanged=baseForSync.replace('Browser base text','Browser base text + browser change');
+    const merged=scope.Zotero.PaperLoopSync.merge(baseForSync,browserChanged,nativeChanged);
+    check(merged.ok&&merged.html.includes('+ native change')&&merged.html.includes('+ browser change'),'actual native and browser edits merge without dropping either side');
+    const mergedDoc=new win.DOMParser().parseFromString(merged.html,'text/html');mergedDoc.querySelector('h1').remove();
+    const finalHTML='<div data-schema-version="9"><h1>PaperLoop 思考</h1>'+makeFlow(mergedDoc.querySelector('div[data-schema-version]').innerHTML).serialized()+'</div>';
+    state=await request(Notebook,{...nativeTarget,action:'save',baseHTML:nativeChanged,noteHTML:finalHTML});
+    check(state.noteKey===note.key&&note.getAttachments().length===3&&note.getNote().includes('+ native change')&&note.getNote().includes('+ browser change'),'merged note reuses one native note and all three image attachments');
+    for(const key of keys){const image=await request(Notebook,{...nativeTarget,action:'image',imageKey:key});check(image.dataURI.startsWith('data:image/png'),'native image readable after merged save '+key);}
+    result.sync={baseHTML:baseForSync,normalizedHTML:normalized,nativeHTML:nativeChanged,mergedHTML:state.noteHTML};
     result.ok=true;
   }catch(error){result.error=String(error)+'\n'+(error.stack||'');Zotero.logError(error);}
   try{editor?.remove();}catch(_){}

@@ -75,6 +75,7 @@ Zotero.Connector_Browser = new function() {
 			"inject/paperLoopImages_inject.js",
 			"inject/paperLoopGallery_inject.js",
 			"inject/paperLoopFlow_inject.js",
+			"inject/paperLoopSync_inject.js",
 			"inject/paperLoopSidebar_inject.js",
 			"messagingGeneric.js",
 			"i18n.js",

@@ -1,9 +1,9 @@
-param([string]$PackageDirectory = 'paperloop-release/verified')
+param([string]$PackageDirectory = 'paperloop-release/verified-0328')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 foreach($part in @(
-    @{Source='browser-extension';File='PaperLoop-Browser-Extension-0.3.27.zip';Version='0.3.27'},
+    @{Source='browser-extension';File='PaperLoop-Browser-Extension-0.3.28.zip';Version='0.3.28'},
     @{Source='zotero-plugin';File='PaperLoop-for-Zotero-0.5.4.xpi';Version='0.5.4'}
 )){
     $source=Join-Path $repo $part.Source

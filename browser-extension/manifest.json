@@ -1,7 +1,7 @@
 {
   "name": "PaperLoop for Zotero Connector",
   "manifest_version": 3,
-	"version": "0.3.27",
+	"version": "0.3.28",
   "description": "Keep a per-paper reading sidebar and save trusted Zotero references with PaperLoop thought notes",
   "default_locale": "en",
   "action": {
@@ -95,6 +95,7 @@
         "inject/paperLoopImages_inject.js",
         "inject/paperLoopGallery_inject.js",
         "inject/paperLoopFlow_inject.js",
+        "inject/paperLoopSync_inject.js",
         "inject/paperLoopSidebar_inject.js",
         "messagingGeneric.js",
         "i18n.js",

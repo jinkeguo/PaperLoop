@@ -8,7 +8,7 @@ const profile=fs.mkdtempSync(path.join(output,'edge-test-'));
 const delay=ms=>new Promise(r=>setTimeout(r,ms));
 const flowVersion=fs.existsSync(path.join(ext,'inject/paperLoopFlow_inject.js'));
 const fixtureFile='../test/paperloop-notebook-fixture.js';
-const scripts=[path.join(__dirname,fixtureFile),path.join(addon,'notebook.js'),path.join(ext,'paperloop-images.js'),path.join(ext,'lib/dompurify.js'),path.join(ext,'inject/paperLoopGallery_inject.js'),...(flowVersion?[path.join(ext,'inject/paperLoopFlow_inject.js')]:[]),path.join(ext,'inject/paperLoopSidebar_inject.js')];
+const scripts=[path.join(__dirname,fixtureFile),path.join(addon,'notebook.js'),path.join(ext,'paperloop-images.js'),path.join(ext,'lib/dompurify.js'),path.join(ext,'inject/paperLoopGallery_inject.js'),...(flowVersion?[path.join(ext,'inject/paperLoopFlow_inject.js'),path.join(ext,'inject/paperLoopSync_inject.js')]:[]),path.join(ext,'inject/paperLoopSidebar_inject.js'),path.join(root,'test/paperloop-sync-fixture.js')];
 const html='<!doctype html><meta charset="utf-8"><title>PaperLoop 本机自动化测试</title><style>body{margin:0;background:#f4f5f1;color:#475343;font:16px/1.9 "Segoe UI","Microsoft YaHei",sans-serif}main{max-width:730px;padding:85px 80px}small{letter-spacing:2px;color:#8d9783}h1{font-weight:500;font-size:32px;line-height:1.5}p{color:#839079}hr{border:0;border-top:1px solid #dfe5d7;margin:35px 0}</style><main><small>READ · COLLECT · THINK</small><h1>让阅读留下线索，<br>让思考自然生长。</h1><hr><p>本页是独立的自动化测试文献，<br>不会读写你的 Zotero 文库。</p></main>'+scripts.map((_,i)=>`<script src="/script-${i}.js"></script>`).join('');
 const server=http.createServer((req,res)=>{const asset=/^\/images\/paperloop-themes\/(cowcat|shiba|iris|tide)\.jpg$/.exec(req.url);if(asset){res.setHeader('Content-Type','image/jpeg');res.end(fs.readFileSync(path.join(ext,'images/paperloop-themes',asset[1]+'.jpg')));return;}const m=/^\/script-(\d+)\.js$/.exec(req.url);res.setHeader('Content-Type',m?'text/javascript; charset=utf-8':'text/html; charset=utf-8');res.end(m?fs.readFileSync(scripts[+m[1]]):html);});
 let child,socket,seq=0,stderr='';
@@ -24,6 +24,7 @@ async function evaluate(expression){const r=await command('Runtime.evaluate',{ex
  await command('Emulation.setDeviceMetricsOverride',{width:1440,height:960,deviceScaleFactor:1,mobile:false});
  for(let i=0;i<100;i++){if(await evaluate('!!(window.fixture && window.fixture.uiTests && window.Zotero?.PaperLoopSidebar)'))break;await delay(100);}
  await evaluate('(async()=>{await fixture.setup();await fixture.backendTests();await fixture.uiSetup();return true;})()');
+ if(process.env.PAPERLOOP_SYNC_ONLY){const results=await evaluate('fixture.syncTests()');fs.writeFileSync(path.join(output,'sync-report.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));assert.ok(results.every(r=>r.ok),'sync regression failed');return;}
  const shot=await command('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(output,'sidebar-preview.png'),Buffer.from(shot.data,'base64'));
  const report=await evaluate('fixture.uiTests()');
  const galleryTests=await evaluate('fixture.galleryTests()');report.push(...galleryTests);
@@ -31,6 +32,7 @@ async function evaluate(expression){const r=await command('Runtime.evaluate',{ex
  if(flowVersion){const flowTests=await evaluate('fixture.flowTests()');report.push(...flowTests);}
  if(Number(releaseVersion.split('.')[2])>=25)report.push(...await evaluate('fixture.editingTests()'));
  if(Number(releaseVersion.split('.')[2])>=26)report.push(...await evaluate('fixture.columnTests()'));
+ if(Number(releaseVersion.split('.')[2])>=28){const results=await evaluate('fixture.syncTests()');fs.writeFileSync(path.join(output,'sync-report.json'),JSON.stringify(results,null,2));assert.ok(results.every(r=>r.ok),JSON.stringify(results.filter(r=>!r.ok)));report.push(...results.map(r=>r.name));}
  await evaluate('fixture.galleryPreview()');await delay(250);
  const galleryShot=await command('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(output,'gallery-preview.png'),Buffer.from(galleryShot.data,'base64'));
  const galleryBounds=await evaluate('Zotero.PaperLoopSidebar.debugState().rectangle');const cropped=await command('Page.captureScreenshot',{format:'png',clip:{x:galleryBounds.x-5,y:galleryBounds.y-5,width:galleryBounds.width+10,height:galleryBounds.height+10,scale:1}});fs.writeFileSync(path.join(output,'gallery-sidebar.png'),Buffer.from(cropped.data,'base64'));

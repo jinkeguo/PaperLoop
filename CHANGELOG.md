@@ -1,5 +1,21 @@
 # Changelog
 
+## PaperLoop 0.3.28 / Zotero 0.5.4 — 2026-09-23
+
+### 中文
+
+- 修复普通编辑后误报“两端内容不一致”。
+- 已关联笔记自动双向同步，不同段落的修改自动合并。
+- 修复多张图片在重新打开文献后不显示缩略图。
+
+### English
+
+- Fixed false conflicts after ordinary note edits.
+- Linked notes sync both ways and automatically merge changes to different paragraphs.
+- Fixed missing thumbnails when reopening papers with multiple saved images.
+
+[Downloads and release notes / 下载与更新说明](docs/releases/v0.3.28.md)
+
 ## PaperLoop 0.3.27 / Zotero 0.5.4 — 2026-09-22
 
 ### 中文

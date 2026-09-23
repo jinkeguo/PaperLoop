@@ -2,13 +2,13 @@
 
 ## 中文
 
-当前版本：浏览器扩展 **0.3.27**，Zotero 插件 **0.5.4**。已验证环境为 Microsoft Edge 和 Zotero 9.0.6。
+当前版本：浏览器扩展 **0.3.28**，Zotero 插件 **0.5.4**。已验证环境为 Microsoft Edge 和 Zotero 9.0.6。
 
 ### 首次安装
 
-1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.27) 下载浏览器 ZIP 和 Zotero XPI。
+1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.28) 下载完整分享包，或分别下载浏览器 ZIP 和 Zotero XPI。
 2. 打开 Zotero 的插件管理器，点击齿轮，选择“从文件安装插件”，安装 `PaperLoop-for-Zotero-0.5.4.xpi`，然后重启。
-3. 解压 `PaperLoop-Browser-Extension-0.3.27.zip`。
+3. 解压 `PaperLoop-Browser-Extension-0.3.28.zip`。如使用完整分享包，选择其中已解压的 `browser-extension` 文件夹。
 4. 在 Edge 的 `edge://extensions` 或 Chrome 的 `chrome://extensions` 开启开发者模式，选择“加载解压缩的扩展”，打开直接包含 `manifest.json` 的文件夹。
 5. 允许 PaperLoop 访问待用网页。若同时安装了官方 Zotero Connector，先停用其中一个，避免重复注入。
 
@@ -29,13 +29,13 @@
 
 ## English
 
-Current versions: browser extension **0.3.27**, Zotero plugin **0.5.4**. Checked with Microsoft Edge and Zotero 9.0.6.
+Current versions: browser extension **0.3.28**, Zotero plugin **0.5.4**. Checked with Microsoft Edge and Zotero 9.0.6.
 
 ### First installation
 
-1. Download the browser ZIP and Zotero XPI from the [release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.27).
+1. Download the complete share package, or the browser ZIP and Zotero XPI separately, from the [release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.28).
 2. Open Zotero's Plugins manager, select “Install Plugin From File” from the gear menu, choose `PaperLoop-for-Zotero-0.5.4.xpi`, and restart Zotero.
-3. Extract `PaperLoop-Browser-Extension-0.3.27.zip`.
+3. Extract `PaperLoop-Browser-Extension-0.3.28.zip`. If using the complete share package, select its already extracted `browser-extension` folder.
 4. Enable developer mode at `edge://extensions` or `chrome://extensions`, select “Load unpacked,” and choose the folder containing `manifest.json`.
 5. Allow site access. If the official Zotero Connector is also installed, disable one of the two extensions to avoid duplicate injection.
 

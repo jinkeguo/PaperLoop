@@ -8,7 +8,7 @@ const pageSaving = fs.readFileSync(path.join(root, 'inject', 'pageSaving.js'), '
 const sidebar = fs.readFileSync(path.join(root, 'inject', 'paperLoopSidebar_inject.js'), 'utf8');
 const scripts = manifest.content_scripts[0].js;
 
-assert.equal(manifest.version, '0.3.27');
+assert.equal(manifest.version, '0.3.28');
 assert.ok(scripts.indexOf('inject/paperLoopFlow_inject.js')>0&&scripts.indexOf('inject/paperLoopFlow_inject.js')<scripts.indexOf('inject/paperLoopSidebar_inject.js'),'theme/layout helper must load before sidebar');
 const background=fs.readFileSync(path.join(root,'background.js'),'utf8');
 assert.ok(background.indexOf('"inject/paperLoopFlow_inject.js"')>0&&background.indexOf('"inject/paperLoopFlow_inject.js"')<background.indexOf('"inject/paperLoopSidebar_inject.js"'),'reinjection/reload must load the helper too');

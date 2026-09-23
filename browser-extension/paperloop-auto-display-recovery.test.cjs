@@ -6,7 +6,7 @@ const root = __dirname;
 const background = fs.readFileSync(path.join(root, 'background.js'), 'utf8');
 const manifest = JSON.parse(fs.readFileSync(path.join(root, 'manifest.json'), 'utf8'));
 
-assert.equal(manifest.version, '0.3.27');
+assert.equal(manifest.version, '0.3.28');
 assert.match(background, /nextTabInfo\.paperLoopPinnedByAuto = true;[\s\S]*?open: true, pending: true/,
 	'same-document navigation must keep an auto-open panel pending until reclassification');
 assert.match(background, /browser\.tabs\.query\(\{active: true, currentWindow: true\}\)/,

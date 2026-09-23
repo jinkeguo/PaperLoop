@@ -3,7 +3,7 @@ Zotero.PaperLoopGallery = class {
 	constructor(root, panel, options) {
 		this.root=root; this.options=options; this.pending=[]; this.saved=[];
 		this.selected=new Set(); this.seen=new Set(); this.thumbnails=new Map();
-		this.busy=false; this.dead=false; this.jobs=[]; this.workers=0; this.signature='';
+		this.busy=false; this.dead=false; this.jobs=[]; this.workers=0; this.signature='';this.sourceJobs=new Map();
 		root.innerHTML=`<style>
 		.media-area{flex:1;min-height:0;display:flex;flex-direction:column}.media-top{padding:17px 23px 11px;display:flex;align-items:center;justify-content:space-between;gap:10px}.media-top h3{font-size:13px;font-weight:600;margin:0}.media-top p{font-size:10px;color:#829078;margin:4px 0 0}.media-select-all{font-size:11px;color:#66805b;padding:5px 0}.media-scroll{padding:0 23px 15px;overflow:auto;min-height:0;flex:1;scrollbar-width:thin;scrollbar-color:#ced7c7 transparent;overscroll-behavior:contain}.media-section{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.6px;color:#8b9783;margin:6px 0 10px}.media-section:not(:first-child){margin-top:22px}.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(136px,1fr));gap:12px 10px;align-content:start}.media-card{min-width:0;border-radius:9px;border:1px solid #e1e6db;background:#fff;position:relative;overflow:hidden}.media-card[data-selected=true]{border-color:#8aa17f;box-shadow:0 0 0 1px #8aa17f35}.media-card[data-state=error]{border-color:#cda995}.media-preview{display:block;position:relative;width:100%;height:105px;border-radius:0;overflow:hidden;padding:9px;background:linear-gradient(135deg,#f3f5ee,#e9eee4);color:#99a48f}.media-preview:hover{background:#e9eee4}.media-preview img{width:100%;height:100%;object-fit:contain;display:block;transition:transform .18s ease}.media-preview:hover img{transform:scale(1.025)}.media-preview img:not([src]){visibility:hidden}.media-number{position:absolute;bottom:6px;left:8px;font-size:9px;line-height:1;color:#63745b;background:#fbfbf7db;padding:4px 5px;border-radius:4px}.media-preview-hint{position:absolute;bottom:6px;right:8px;opacity:0;background:#fbfbf7e8;padding:2px 5px;border-radius:4px;font-size:9px}.media-preview:hover .media-preview-hint,.media-preview:focus-visible .media-preview-hint{opacity:1}.media-check{position:absolute;top:7px;left:7px;background:#fbfbf7f2;border-radius:50%;width:23px;height:23px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 5px #25361a0d}.media-check input{width:14px;height:14px;accent-color:#537148;margin:0;cursor:pointer}.media-caption{font:11px/1.5 'Segoe UI','Microsoft YaHei',sans-serif;margin:9px 9px 4px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:#45583d}.media-detail{display:flex;justify-content:space-between;align-items:center;gap:4px;padding:0 9px 9px;font-size:9px;color:#929d89}.media-card[data-state=error] .media-state{color:#a7674c}.media-card[data-state=saved] .media-state{color:#648158}.media-card[data-state=saving] .media-state{color:#597b4c}.media-empty{text-align:center;padding:37px 4px;color:#89977e;font-size:12px}.media-empty svg{width:56px;height:56px;display:block;margin:0 auto 17px;stroke:#a4b798;fill:none;stroke-width:1.3}.media-empty p{font-size:10px;line-height:1.8;color:#9da793}.media-bottom{padding:12px 23px 17px;border-top:1px solid #e6e9df;background:#f9faf5;flex-shrink:0}.media-selection{display:flex;align-items:center;justify-content:space-between;gap:7px;font-size:10px;color:#87947b;margin-bottom:9px}.media-remove{font-size:10px;padding:3px 0;color:#929b89}.media-remove.confirm{color:#a4624a}.media-save{display:block;width:100%;padding:11px 10px;border-radius:7px;background:#48684f;color:white;font-size:12px}.media-save:hover{background:#3e5b44}.media-save:disabled{opacity:.48}.media-progress{height:3px;border-radius:3px;background:#e4e9dd;overflow:hidden;margin:0 0 10px}.media-progress-fill{height:100%;background:#78976a;transition:width .15s ease}.media-note{font-size:10px;color:#8f9b85;margin:9px 0 0;line-height:1.6}.media-empty-actions{font-size:10px;color:#8f9b85;padding:5px 0}
 		.media-viewer{position:absolute;inset:0;z-index:4;background:#fafbf7;display:flex;flex-direction:column;padding:16px;border-radius:14px}.media-viewer-head{display:flex;align-items:center;justify-content:space-between;color:#85947a;font-size:11px}.media-viewer-close{font-size:20px;width:28px;height:28px;color:#7e8c74}.media-viewer-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:14px 0;background:#eef2e7;border:1px solid #e4eadb;border-radius:9px}.media-viewer-image{display:block;width:100%;height:100%;object-fit:contain;padding:9px}.media-viewer-image:not([src]){visibility:hidden}.media-viewer-message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:12px;color:#929e86}.media-viewer-prev,.media-viewer-next{position:absolute;top:50%;transform:translateY(-50%);width:29px;height:35px;background:#fbfbf7ef;border:1px solid #dce4d4;color:#657d59;border-radius:6px;font-size:22px;box-shadow:0 2px 6px #324c2310}.media-viewer-prev{left:4px}.media-viewer-next{right:4px}.media-viewer-caption{font-size:12px;line-height:1.65;max-height:64px;overflow:auto;margin:0 0 5px;color:#4a6141}.media-viewer-info{font-size:10px;color:#91a087;margin:0 0 12px}.media-viewer-actions{display:flex;gap:8px;justify-content:space-between;align-items:center}.media-viewer-select{padding:8px 10px;font-size:11px;color:#617e54;background:#edf2e6}.media-viewer-download{color:#536f47;border:1px solid #dce5d2;border-radius:6px;font-size:11px;padding:8px 12px;text-decoration:none}.media-viewer-download[aria-disabled=true]{pointer-events:none;opacity:.4}@media(prefers-reduced-motion:reduce){.media-preview img,.media-progress-fill{transition:none}}
@@ -63,7 +63,7 @@ Zotero.PaperLoopGallery = class {
 			this.el.scroll.scrollTop=scroll;
 			const keys=new Set(this.items.map(r=>r.key));for(const key of this.thumbnails.keys())if(!keys.has(key))this.thumbnails.delete(key);
 		}
-		this.controls();this.options.onCount(this.pending.length,this.saved.length);
+		this.controls();this.options.onCount(this.pending.length,this.saved.length);this.retryThumbnails();
 	}
 	card(record){
 		const card=document.createElement('article');card.className='media-card';card.dataset.id=record.id;card.dataset.kind=record.kind;card.dataset.state=record.kind==='saved'?'saved':record.status||'pending';
@@ -79,7 +79,7 @@ Zotero.PaperLoopGallery = class {
 		const dimensions=document.createElement('span');dimensions.className='media-dimensions';dimensions.textContent=record.width?`${record.width} × ${record.height}`:'…';detail.append(status,dimensions);
 		if(this.options.onRename){const row=document.createElement('div');row.className='media-name-row';const rename=document.createElement('button');rename.type='button';rename.className='media-rename';rename.textContent=this.t('改名','Rename');rename.setAttribute('aria-label',this.t('重命名图片：','Rename image: ')+caption.textContent);rename.onclick=()=>this.beginRename(record,card,row);caption.onclick=()=>this.beginRename(record,card,row);row.append(caption,rename);card.append(row);}else card.append(caption);card.append(detail);
 		if(this.options.links){const row=document.createElement('div');row.className='media-links';const refs=this.options.links(record);for(const ref of refs){const chip=document.createElement('span');chip.className='flow-chip';const label=document.createElement('button');label.type='button';label.textContent=ref.title;label.onclick=()=>this.open(record.key,ref.title);const x=document.createElement('button');x.type='button';x.className='flow-unlink';x.textContent='×';x.setAttribute('aria-label','解除与「'+ref.title+'」的关联');x.onclick=()=>{if(!this.busy&&!this.options.noteSaving())this.options.onUnlink(ref.entry,record);};chip.append(label,x);row.append(chip);}if(!refs.length){const link=document.createElement('button');link.type='button';link.className='media-link-add';link.textContent=this.t('关联当前段落','Link current paragraph');link.onclick=()=>{if(!this.busy&&!this.options.noteSaving())this.options.onLink(record);};row.append(link);}card.append(row);}
-		this.loadThumbnail(record,img,dimensions);return card;
+		return card;
 	}
 	beginRename(record,card,row){
 		if(this.dead||this.busy||this.options.noteSaving())return;if(this.renameEditor){if(this.renameEditor.record.key===record.key)return;if(!this.finishRename())return;const current=this.el.items.querySelector('.media-card[data-id="'+record.id+'"]');if(!current)return;card=current;row=current.querySelector('.media-name-row');}
@@ -110,21 +110,35 @@ Zotero.PaperLoopGallery = class {
 	}
 	async source(record){
 		if(this.dead)throw new Error('Gallery closed');
-		const result=await this.options.request(record.kind==='pending'?{action:'pending-preview',id:record.id}:{action:'image',imageKey:record.id});
-		if(!/^data:image\/(png|jpeg|gif|webp);base64,/.test(result.dataURI||''))throw new Error(this.t('图片预览不可用','Image preview unavailable'));
-		return result.dataURI;
+		if(this.sourceJobs.has(record.key))return this.sourceJobs.get(record.key);
+		const operation=(async()=>{const result=await this.options.request(record.kind==='pending'?{action:'pending-preview',id:record.id}:{action:'image',imageKey:record.id});
+			if(!/^data:image\/(png|jpeg|gif|webp);base64,/.test(result.dataURI||''))throw new Error(this.t('图片预览不可用','Image preview unavailable'));
+			return result.dataURI;})();
+		this.sourceJobs.set(record.key,operation);
+		try{return await operation;}finally{if(this.sourceJobs.get(record.key)===operation)this.sourceJobs.delete(record.key);}
+	}
+	retryThumbnails(){
+		if(this.dead||this.options.canLoad?.()===false)return;
+		for(const card of this.el.items.querySelectorAll('.media-card')){
+			const node=card.querySelector('.media-preview img');
+			if(node.hasAttribute('src')||node.dataset.loading)continue;
+			const record=this.items.find(r=>r.id===card.dataset.id&&r.kind===card.dataset.kind);
+			if(record)this.loadThumbnail(record,node,card.querySelector('.media-dimensions'));
+		}
 	}
 	loadThumbnail(record,node,dimensions){
-		const apply=value=>{if(this.dead||!node.isConnected)return;node.src=value.url;dimensions.textContent=`${value.width} × ${value.height}`;};
+		node.dataset.loading='true';
+		const apply=value=>{if(this.dead||!node.isConnected)return;node.src=value.url;node.parentElement.removeAttribute('title');dimensions.textContent=`${value.width} × ${value.height}`;};
 		this.jobs.push(async()=>{
-			if(this.dead||!node.isConnected)return;
 			try{
+				if(this.dead||!node.isConnected)return;
 				let value=this.thumbnails.get(record.key);
 				if(!value){const src=await this.source(record);if(this.dead)return;const img=new Image();img.src=src;await img.decode();
 					const canvas=document.createElement('canvas');const scale=Math.min(1,400/Math.max(img.naturalWidth,img.naturalHeight));canvas.width=Math.max(1,Math.round(img.naturalWidth*scale));canvas.height=Math.max(1,Math.round(img.naturalHeight*scale));const ctx=canvas.getContext('2d');ctx.fillStyle='#f4f6ef';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(img,0,0,canvas.width,canvas.height);
 					value={url:canvas.toDataURL('image/jpeg',.85),width:img.naturalWidth,height:img.naturalHeight};this.thumbnails.set(record.key,value);}
 				apply(value);
-			}catch(e){if(!this.dead&&node.isConnected){node.parentElement.title=e.message;dimensions.textContent=this.t('预览不可用','No preview');}}
+			}catch(e){if(!this.dead&&node.isConnected){node.parentElement.title=e.message;dimensions.textContent=this.t('等待重试','Retrying preview');}}
+			finally{delete node.dataset.loading;}
 		});
 		queueMicrotask(()=>this.pump());
 	}
