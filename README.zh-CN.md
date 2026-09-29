@@ -2,9 +2,8 @@
 
 # PaperLoop
 
-继续阅读，随手记录，把论文、文字和图片一起保存到 Zotero。
-
-PaperLoop 在 Zotero Connector 的题录与附件采集功能上加入阅读笔记。右键收藏网页图片，边读边写，再将图文一起保存为 Zotero 子笔记。
+继续阅读，随手记录，把论文、笔记、图片、引用格式一起保存到 Zotero。
+PaperLoop 在 Zotero Connector 的题录与附件采集功能上加入阅读笔记。同时可收藏网页图片与屏幕截图，边读边写，再将图文一起保存为 Zotero 子笔记。
 
 ## 界面预览
 
