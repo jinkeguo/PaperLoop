@@ -26,6 +26,7 @@ async function evaluate(expression){const r=await command('Runtime.evaluate',{ex
  for(let i=0;i<100;i++){if(await evaluate('!!(window.fixture && window.fixture.uiTests && window.Zotero?.PaperLoopSidebar)'))break;await delay(100);}
  await evaluate('(()=>{const runtime=window.browser.runtime;Object.defineProperty(window.browser,"runtime",{get:()=>runtime,set(){},configurable:false});return true;})()');
  await evaluate('(async()=>{await fixture.setup();await fixture.backendTests();await fixture.uiSetup();return true;})()');
+ if(process.env.PAPERLOOP_README_PREVIEW){await require('../test/paperloop-readme-preview.cjs')({command,evaluate,output});return;}
  if(process.env.PAPERLOOP_INTERACTION_ONLY){await require('../test/paperloop-0335-driver.cjs')({command,evaluate});return;}
  if(process.env.PAPERLOOP_THEME_ONLY){const results=await require('../test/paperloop-0334-driver.cjs')({command,evaluate,output});fs.writeFileSync(path.join(output,'watercolor-report.json'),JSON.stringify({passed:results.length,tests:results},null,2));return;}
  if(process.env.PAPERLOOP_SYNC_ONLY){const results=await evaluate('fixture.syncTests()');fs.writeFileSync(path.join(output,'sync-report.json'),JSON.stringify(results,null,2));console.log(JSON.stringify(results,null,2));assert.ok(results.every(r=>r.ok),'sync regression failed');return;}

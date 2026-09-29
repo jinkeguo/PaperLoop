@@ -8,11 +8,11 @@ PaperLoop adds a reading notebook to Zotero Connector's metadata and attachment 
 
 ## Interface preview
 
-Screenshots of the actual browser interface with isolated demo content.
+Cow Cat theme screenshots of the actual browser interface with isolated demo content.
 
 | Light theme | Dark theme | Image collection |
 | --- | --- | --- |
-| ![PaperLoop reading notes in the light theme](docs/assets/paperloop-0.3.35-light.png) | ![PaperLoop reading notes in the dark theme](docs/assets/paperloop-0.3.35-dark.png) | ![PaperLoop multi-image collection](docs/assets/paperloop-0.3.35-gallery.png) |
+| ![PaperLoop reading notes in the light theme](docs/assets/paperloop-0.3.35-cowcat-light.png) | ![PaperLoop reading notes in the dark theme](docs/assets/paperloop-0.3.35-cowcat-dark.png) | ![PaperLoop multi-image collection](docs/assets/paperloop-0.3.35-cowcat-gallery.png) |
 
 ## What's new
 
