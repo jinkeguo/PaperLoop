@@ -22,8 +22,7 @@ var PaperLoopNotebook = {
 		const win = instance._iframeWindow, doc = win?.document;
 		if (!doc || this.columnDocuments.has(doc)) return;
 		const style = doc.createElement('style');
-		const selector='.ProseMirror table:has(>tbody>tr:first-child>th:first-child[data-colwidth="330"]):has(>tbody>tr:first-child>th:nth-child(2)[data-colwidth="270"])';
-		style.textContent = `
+		const rules = selector => `
 		${selector}{table-layout:fixed;width:100%}
 		${selector}>tbody>tr>th:first-child,${selector}>tbody>tr>td:first-child{width:55%}
 		${selector}>tbody>tr>th:nth-child(2),${selector}>tbody>tr>td:nth-child(2){width:45%}
@@ -34,11 +33,20 @@ var PaperLoopNotebook = {
 		const update = () => {
 			// Never mutate ProseMirror's content DOM: even a data attribute can be
 			// mistaken for a user edit by its DOM observer. Only toggle head CSS.
-			const matches=[...doc.querySelectorAll('.ProseMirror table')].some(table=>{
+			const matches=[...doc.querySelectorAll('.ProseMirror table')].filter(table=>{
 				const cells = table.rows[0]?.cells;
 				return cells?.length===2 && cells[0].textContent.trim()==='PaperLoop · 笔记' && cells[1].textContent.trim()==='关联图片';
 			});
-			style.disabled=!matches;
+			// Firefox 115 in Zotero 7 does not enable :has(). Build structural
+			// selectors for recognized PaperLoop tables without touching note DOM.
+			const css=matches.map(table=>{
+				const path=[];let node=table;
+				while(node&&!node.classList.contains('ProseMirror')){
+					path.unshift(node.localName+':nth-child('+([...node.parentElement.children].indexOf(node)+1)+')');node=node.parentElement;
+				}
+				return node?rules('.ProseMirror > '+path.join(' > ')):'';
+			}).join('\n');
+			if(style.textContent!==css)style.textContent=css;
 		};
 		const observer = new win.MutationObserver(update); update(); observer.observe(doc.body,{childList:true,subtree:true,characterData:true});
 		const cleanup = () => { observer.disconnect(); style.remove(); this.columnDocuments.delete(doc); win.removeEventListener('unload',cleanup); };
@@ -126,10 +134,68 @@ var PaperLoopNotebook = {
 			noteModified: note && note.dateModified || '', title: parent.getField('title') || ''
 		};
 	},
+	legacyEditors(note) {
+		if (!/^7\./.test(String(Zotero.version || ''))) return [];
+		return (Zotero.Notes._editorInstances || []).filter(instance => {
+			if(instance._item?.id !== note.id || instance._readOnly || instance._disableSaving)return false;
+			// Unregistration is asynchronous; a just-closed iframe can remain here.
+			try{return !!instance._iframeWindow?.document?.querySelector('.ProseMirror');}
+			catch(error){if(/dead object/i.test(String(error)))return false;throw error;}
+		});
+	},
+	async flushLegacyEditor(note) {
+		const editors = this.legacyEditors(note);
+		// Several views of the same unchanged note are fine. If their pending
+		// contents differ, never arbitrarily choose which native editor wins.
+		if (new Set(editors.map(instance=>instance._iframeWindow.wrappedJSObject.getDataSync(false)?.html)).size>1) {
+			this.fail('此笔记的多个 Zotero 编辑窗口内容不同，请先保留并确认修改',409);
+		}
+		for (const instance of editors.slice(0,1)) {
+			const win = instance._iframeWindow?.wrappedJSObject;
+			if (!win?.getDataSync || typeof instance._save !== 'function') this.fail('Zotero 笔记编辑器尚未就绪，请稍后重试', 409);
+			const data = win.getDataSync(true);
+			if (data) await instance._save(JSON.parse(JSON.stringify(data)));
+		}
+		for(const instance of this.legacyEditors(note))await instance._initPromise;
+		return this.legacyEditors(note).map(instance => ({instance,
+			html:instance._iframeWindow.wrappedJSObject.getDataSync(false)?.html}));
+	},
+	async commitHTML(note, html, expected, editors=[]) {
+		// Zotero 7 reinitializes an open editor on external modification. Its
+		// uninit() saves stale HTML unless the retiring instance is disabled
+		// (the same mechanism used by Zotero.Notes.updateUser).
+		if (note.getNote() !== expected) this.fail('笔记刚刚发生变化，请重新载入后再保存',409);
+		for (const entry of editors) {
+			if (entry.instance._iframeWindow.wrappedJSObject.getDataSync(false)?.html !== entry.html) {
+				this.fail('Zotero 中仍在编辑此笔记，草稿已保留，请稍后保存',409);
+			}
+		}
+		const held = editors.map(({instance}) => {
+			const element=instance._iframeWindow.document.querySelector('.ProseMirror');
+			const editable=element?.getAttribute('contenteditable');
+			if(element)element.setAttribute('contenteditable','false');
+			instance._disableSaving=true;
+			return {instance,element,editable};
+		});
+		try {
+			note.setNote(html);
+			await note.saveTx({notifierData:{autoSyncDelay:Zotero.Notes.AUTO_SYNC_DELAY}});
+		}
+		catch(error) {
+			for(const {instance} of held)instance._disableSaving=false;
+			throw error;
+		}
+		finally {
+			for(const {element,editable} of held)if(element?.isConnected){
+				if(editable===null)element.removeAttribute('contenteditable');else element.setAttribute('contenteditable',editable);
+			}
+		}
+	},
 	async save(parent, data) {
 		return this.locked(parent, async () => {
 			const previous = await this.noteFor(parent);
 			const note = previous || await this.noteFor(parent, true);
+			const editors = await this.flushLegacyEditor(note);
 			const current = String(note.getNote() || '');
 			if (!previous && data.baseHTML === '') data = {...data, baseHTML:current};
 			const clean = await this.sanitize(data.noteHTML, note);
@@ -137,8 +203,7 @@ var PaperLoopNotebook = {
 			if (typeof data.baseHTML !== 'string' || data.baseHTML !== current) this.fail('笔记已在其他窗口更新，草稿已保留。请载入 Zotero 最新内容后再保存。', 409);
 			// Recheck after asynchronous attachment validation.
 			if (note.getNote() !== current) this.fail('笔记刚刚发生变化，请重新载入后再保存', 409);
-			note.setNote(clean);
-			await note.saveTx({notifierData: {autoSyncDelay: Zotero.Notes.AUTO_SYNC_DELAY}});
+			await this.commitHTML(note, clean, current, editors);
 			return this.snapshot(parent, note);
 		});
 	},
@@ -165,6 +230,7 @@ var PaperLoopNotebook = {
 		const hash = this.hash(bytes);
 		return this.locked(parent, async () => {
 			const note = await this.noteFor(parent, true);
+			const editors = await this.flushLegacyEditor(note);
 			const title = `PaperLoop image ${hash}`;
 			const attachments = await Zotero.Items.getAsync(note.getAttachments());
 			let attachment = attachments.find(item => !item.deleted && item.isEmbeddedImageAttachment() && item.getField('title') === title);
@@ -199,8 +265,7 @@ var PaperLoopNotebook = {
 			if (provenance.childNodes.length) root.append(provenance);
 			const clean = await this.sanitize(doc.body.innerHTML, note);
 			if (note.getNote() !== current) this.fail('笔记刚刚发生变化，图片仍在待保存列表，请重试', 409);
-			note.setNote(clean);
-			await note.saveTx();
+			await this.commitHTML(note, clean, current, editors);
 			return {...await this.snapshot(parent, note), imageKey: attachment.key, repeated: false};
 		});
 	},

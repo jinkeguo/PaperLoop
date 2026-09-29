@@ -1,4 +1,4 @@
-param([string]$ZoteroPath = 'C:/Program Files/Zotero/zotero.exe', [string]$Package = 'paperloop-release/verified-0328/PaperLoop-for-Zotero-0.5.4.xpi')
+param([string]$ZoteroPath = 'C:/Program Files/Zotero/zotero.exe', [string]$Package = 'paperloop-release/verified-0333/PaperLoop-for-Zotero-0.5.5.xpi')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $repo = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -7,7 +7,13 @@ $profile = Join-Path $root 'profile'
 $data = Join-Path $root 'data'
 $extensions = Join-Path $profile 'extensions'
 New-Item -ItemType Directory -Path $extensions,$data -Force | Out-Null
+$listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+$listener.Start();$testPort=$listener.LocalEndpoint.Port;$listener.Stop()
 $prefs = @(
+    ('user_pref("extensions.zotero.httpServer.port", '+$testPort+');'),
+    'user_pref("extensions.zotero.httpServer.enabled", true);',
+    'user_pref("extensions.zotero.automaticScraperUpdates", false);',
+    'user_pref("app.update.auto", false);',
     'user_pref("extensions.zotero.dataDir", '+(ConvertTo-Json $data -Compress)+');',
     'user_pref("extensions.zotero.useDataDir", true);',
     'user_pref("extensions.zotero.firstRun", false);',
@@ -26,7 +32,7 @@ try {
     foreach($name in @('paperLoopFlow_inject.js','paperLoopSync_inject.js')){[IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip,(Join-Path $repo "browser-extension/inject/$name"),$name) | Out-Null}
 } finally {$zip.Dispose();$stream.Dispose()}
 $process=Start-Process -FilePath $ZoteroPath -ArgumentList @('-no-remote','-profile',('"'+$profile+'"'),'-ZoteroDebugText') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $root 'stdout.log') -RedirectStandardError (Join-Path $root 'stderr.log')
-Write-Output "Isolated test root: $root; PID: $($process.Id)"
+Write-Output "Isolated test root: $root; PID: $($process.Id); HTTP port: $testPort"
 $start=Get-Date
 while(((Get-Date)-$start).TotalSeconds -lt 55){
     $report=Join-Path $root 'report.json'

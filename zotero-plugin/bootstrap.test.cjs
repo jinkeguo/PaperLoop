@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+async function testHost(version, privateCleanup=true) {
 const calls = [];
 const context = vm.createContext({
 	console,
@@ -18,7 +19,7 @@ const context = vm.createContext({
 	setTimeout,
 	clearTimeout,
 	Zotero: {
-		version: '9.0.6',
+		version,
 		initializationPromise: Promise.resolve().then(() => calls.push(['initialized'])),
 		Server: {Endpoints: {}},
 		Reader: {
@@ -33,6 +34,10 @@ const context = vm.createContext({
 		logError(error) { calls.push(['error', String(error && error.message || error)]); }
 	}
 });
+if (!privateCleanup) {
+ delete context.Zotero.Reader._unregisterEventListenerByPluginID;
+ context.Zotero.Reader.unregisterEventListener=(...args)=>calls.push(['reader-public-unregister',...args]);
+}
 
 context.Services = {
 	scriptloader: {
@@ -47,10 +52,9 @@ context.Services = {
 const bootstrap = fs.readFileSync(path.join(__dirname, 'bootstrap.js'), 'utf8');
 vm.runInContext(bootstrap, context, {filename: 'bootstrap.js'});
 
-(async () => {
 	await context.startup({
 		id: 'paperloop-doi-bridge@paperloop.app',
-		version: '0.5.2',
+		version: '0.5.5',
 		rootURI: 'test://paperloop/'
 	});
 	assert.equal(calls.some(call => call[0] === 'error'), false);
@@ -70,12 +74,19 @@ vm.runInContext(bootstrap, context, {filename: 'bootstrap.js'});
 
 	context.shutdown();
 	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length, 0);
-	assert.deepEqual(
+	if (privateCleanup) assert.deepEqual(
 		calls.find(call => call[0] === 'reader-unregister').slice(1),
 		['paperloop-doi-bridge@paperloop.app']
 	);
-	console.log('PaperLoop Zotero 9 bootstrap smoke test passed');
-})().catch(error => {
+	else assert.equal(calls.filter(call=>call[0]==='reader-public-unregister').length,1);
+	await context.startup({id:'paperloop-doi-bridge@paperloop.app',version:'0.5.5',rootURI:'test://paperloop/'});
+	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length,9);
+	context.shutdown();
+	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length,0);
+	assert.equal(calls.some(call=>call[0]==='error'),false);
+	console.log('PaperLoop bootstrap/re-enable mock passed: '+version+'; private cleanup='+privateCleanup);
+}
+(async()=>{for(const version of ['7.0.32','8.0.4','9.0.6','10.0.3'])for(const cleanup of [true,false])await testHost(version,cleanup);})().catch(error => {
 	console.error(error);
 	process.exitCode = 1;
 });

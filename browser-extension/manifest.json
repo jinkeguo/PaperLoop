@@ -1,7 +1,7 @@
 {
   "name": "PaperLoop for Zotero Connector",
   "manifest_version": 3,
-	"version": "0.3.28",
+	"version": "0.3.35",
   "description": "Keep a per-paper reading sidebar and save trusted Zotero references with PaperLoop thought notes",
   "default_locale": "en",
   "action": {

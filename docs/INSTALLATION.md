@@ -2,13 +2,13 @@
 
 ## 中文
 
-当前版本：浏览器扩展 **0.3.28**，Zotero 插件 **0.5.4**。已验证环境为 Microsoft Edge 和 Zotero 9.0.6。
+当前版本：浏览器扩展 **0.3.35**，Zotero 插件 **0.5.5**。浏览器使用 Microsoft Edge 验证；Zotero 7–10 的实测版本见 [兼容性记录](COMPATIBILITY.md)。
 
 ### 首次安装
 
-1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.28) 下载完整分享包，或分别下载浏览器 ZIP 和 Zotero XPI。
-2. 打开 Zotero 的插件管理器，点击齿轮，选择“从文件安装插件”，安装 `PaperLoop-for-Zotero-0.5.4.xpi`，然后重启。
-3. 解压 `PaperLoop-Browser-Extension-0.3.28.zip`。如使用完整分享包，选择其中已解压的 `browser-extension` 文件夹。
+1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.35) 下载完整分享包，或分别下载浏览器 ZIP 和 Zotero XPI。
+2. 打开 Zotero 的插件管理器，点击齿轮，选择“从文件安装插件”，安装 `PaperLoop-for-Zotero-0.5.5.xpi`，然后重启。
+3. 解压 `PaperLoop-Browser-Extension-0.3.35.zip`。如使用完整分享包，选择其中已解压的 `browser-extension` 文件夹。
 4. 在 Edge 的 `edge://extensions` 或 Chrome 的 `chrome://extensions` 开启开发者模式，选择“加载解压缩的扩展”，打开直接包含 `manifest.json` 的文件夹。
 5. 允许 PaperLoop 访问待用网页。若同时安装了官方 Zotero Connector，先停用其中一个，避免重复注入。
 
@@ -25,17 +25,17 @@
 
 旧笔记在你再次保存时转换为两栏，不会批量改动。请保留布局表头“PaperLoop · 笔记”和“关联图片”，以便浏览器恢复段落与图片关系；正文、段落标题与图名可以编辑。其他设备没有 PaperLoop 插件时仍可阅读表格，显示比例可能不同。
 
-图文保存出现“两端内容不一致”时，先保留当前草稿，再载入 Zotero 中的新内容。缺少 PDF 时，检查网站登录和全文权限。遇到问题可在 [Issues](https://github.com/jinkeguo/PaperLoop/issues) 提交网页链接、版本和提示文字。
+不同段落的修改会自动合并；同一处被两端同时修改时，会保留备份，再由你选择保留哪一版。缺少 PDF 时，检查网站登录和全文权限。遇到问题可在 [Issues](https://github.com/jinkeguo/PaperLoop/issues) 提交网页链接、版本和提示文字。
 
 ## English
 
-Current versions: browser extension **0.3.28**, Zotero plugin **0.5.4**. Checked with Microsoft Edge and Zotero 9.0.6.
+Current versions: browser extension **0.3.35**, Zotero plugin **0.5.5**. Browser checks use Microsoft Edge; see [compatibility coverage](COMPATIBILITY.md) for tested Zotero 7–10 versions.
 
 ### First installation
 
-1. Download the complete share package, or the browser ZIP and Zotero XPI separately, from the [release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.28).
-2. Open Zotero's Plugins manager, select “Install Plugin From File” from the gear menu, choose `PaperLoop-for-Zotero-0.5.4.xpi`, and restart Zotero.
-3. Extract `PaperLoop-Browser-Extension-0.3.28.zip`. If using the complete share package, select its already extracted `browser-extension` folder.
+1. Download the complete share package, or the browser ZIP and Zotero XPI separately, from the [release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.35).
+2. Open Zotero's Plugins manager, select “Install Plugin From File” from the gear menu, choose `PaperLoop-for-Zotero-0.5.5.xpi`, and restart Zotero.
+3. Extract `PaperLoop-Browser-Extension-0.3.35.zip`. If using the complete share package, select its already extracted `browser-extension` folder.
 4. Enable developer mode at `edge://extensions` or `chrome://extensions`, select “Load unpacked,” and choose the folder containing `manifest.json`.
 5. Allow site access. If the official Zotero Connector is also installed, disable one of the two extensions to avoid duplicate injection.
 
@@ -49,4 +49,4 @@ Open a paper, write notes, collect images with a right-click, choose a Zotero li
 
 Existing notes switch to two columns when explicitly saved again, not in bulk. Keep the “PaperLoop · 笔记” and “关联图片” table headings so the browser can restore associations. Body text, paragraph titles, and image names remain editable. Devices without the plugin can still read the table, though column proportions may differ.
 
-If the browser and Zotero copies differ, preserve the draft before loading the newer Zotero copy. Missing PDFs may require website login or full-text access. Report issues with the webpage URL, versions, and error message in [Issues](https://github.com/jinkeguo/PaperLoop/issues).
+Edits to different paragraphs merge automatically. If both sides change the same content, both versions are backed up before you choose which to keep. Missing PDFs may require website login or full-text access. Report issues with the webpage URL, versions, and error message in [Issues](https://github.com/jinkeguo/PaperLoop/issues).

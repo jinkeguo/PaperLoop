@@ -139,6 +139,8 @@ Zotero.Connector = new function() {
 		var method = options.method;
 		var headers = Object.assign({
 				"Content-Type":"application/json",
+				// Explicit opt-in required by Zotero 10's local-server security check.
+				"Zotero-Allowed-Request":"1",
 				"X-Zotero-Version":ZOTERO_CONFIG.CONNECTOR_COMPATIBILITY_VERSION || Zotero.version,
 				"X-Zotero-Connector-API-Version":CONNECTOR_API_VERSION
 			}, options.headers || {});

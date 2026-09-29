@@ -1,12 +1,12 @@
-# PaperLoop for Zotero 0.5.4 / Zotero 9 手工验收
+# PaperLoop for Zotero 0.5.5 / Zotero 9 手工验收
 
 > 自动测试已经通过；本清单用于真实 Zotero 界面、保存和插件共存复验。
 
 ## 1. 安装
 
 1. 打开 Zotero“工具 → 插件”，从文件安装。
-2. **选择 `PaperLoop-for-Zotero-0.5.4.xpi`，不要选择说明文件或源码目录。**
-3. 重启后确认插件列表显示 `PaperLoop for Zotero 0.5.4`，且没有“不兼容”或“已禁用”提示。
+2. **选择 `PaperLoop-for-Zotero-0.5.5.xpi`，不要选择说明文件或源码目录。**
+3. 重启后确认插件列表显示 `PaperLoop for Zotero 0.5.5`，且没有“不兼容”或“已禁用”提示。
 4. 在“帮助 → 关于 Zotero”确认本轮目标主机为 Zotero 9.0.6。
 
 ## 2. 空思考也必须创建笔记

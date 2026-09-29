@@ -34,11 +34,20 @@ function loadCompat(version='9.0.6', options={}) {
 	return {compat: context.PaperLoopZoteroCompat, context, calls};
 }
 
-for (const version of ['7.0.32', '8.0.1', '9.0.6']) {
+for (const version of ['7.0', '7.0.32', '8.0.4', '9.0.6', '10.0', '10.0.3']) {
 	const {compat} = loadCompat(version);
 	assert.equal(compat.assertSupported().hostVersion, version);
 }
-assert.throws(() => loadCompat('10.0.1').compat.assertSupported(), /UNSUPPORTED_ZOTERO_VERSION/);
+for (const version of ['6.0.37','11.0','unknown']) {
+ assert.throws(() => loadCompat(version).compat.assertSupported(), /UNSUPPORTED_ZOTERO_VERSION/);
+}
+for (const capability of ['serverEndpoints','readerEvents','scriptLoader']) {
+ const {compat,context}=loadCompat('10.0.3');
+ if(capability==='serverEndpoints')delete context.Zotero.Server.Endpoints;
+ if(capability==='readerEvents')delete context.Zotero.Reader.registerEventListener;
+ if(capability==='scriptLoader')delete context.Services.scriptloader;
+ assert.throws(()=>compat.assertSupported(),new RegExp('MISSING_ZOTERO_CAPABILITY_'+capability));
+}
 
 {
 	const {compat, context} = loadCompat();

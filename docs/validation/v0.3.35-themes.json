@@ -1,0 +1,20 @@
+{
+  "passed": 15,
+  "tests": [
+    "transparent watercolor and isolated theme halo: cowcat light",
+    "transparent watercolor and isolated theme halo: shiba light",
+    "transparent watercolor and isolated theme halo: iris light",
+    "transparent watercolor and isolated theme halo: tide light",
+    "transparent watercolor and isolated theme halo: paper light",
+    "transparent watercolor and isolated theme halo: sage light",
+    "transparent watercolor and isolated theme halo: ink light",
+    "transparent watercolor and isolated theme halo: cowcat dark",
+    "transparent watercolor and isolated theme halo: shiba dark",
+    "transparent watercolor and isolated theme halo: iris dark",
+    "transparent watercolor and isolated theme halo: tide dark",
+    "transparent watercolor and isolated theme halo: paper dark",
+    "transparent watercolor and isolated theme halo: sage dark",
+    "transparent watercolor and isolated theme halo: ink dark",
+    "ink illustration style unchanged"
+  ]
+}

@@ -41,6 +41,8 @@
 			return null;
 		}
 		const path = url.pathname.toLowerCase();
+		if (/(?:^|\.)(?:cnki\.net|wanfangdata\.com\.cn)$/.test(url.hostname)
+			&& /\/(?:kcms2?\/(?:detail|article)|details\/detail)(?:[/.]|$)/.test(path)) return 'literature';
 		if (/\.pdf$/.test(path)) return 'literature';
 		// A detail route wins over a temporary `multiple` detection caused by
 		// recommendation lists or incremental metadata on literature sites.
@@ -52,7 +54,7 @@
 			|| /\/content\/journals\/10\./.test(path)) {
 			return 'literature';
 		}
-		if (/(?:^|\/)(?:defaultresult|search|results?|starter|advsearch)(?:\/|$)/.test(path)) {
+		if (/(?:^|\/)(?:defaultresult|search|results?|starter|advsearch)(?:[/.]|$)/.test(path)) {
 			return 'result-list';
 		}
 		return null;

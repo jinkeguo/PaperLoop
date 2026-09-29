@@ -12,8 +12,24 @@ async function startup(addonData) {
     for(let i=0;i<200&&!Zotero.Server.Endpoints['/connector/paperloop/notebook'];i++)await Zotero.Promise.delay(100);
     const Resolve=Zotero.Server.Endpoints['/connector/paperloop/resolve'];
     const Notebook=Zotero.Server.Endpoints['/connector/paperloop/notebook'];
-    const request=async(Type,data)=>{const response=await new Type().init({data});if(response[0]!==200)throw new Error(JSON.stringify(response));return JSON.parse(response[2]);};
+    // Use the real local HTTP dispatch, not a direct endpoint method call.
+    // The port belongs only to this disposable profile.
+    const request=async(Type,data)=>{
+      const endpoint=Object.keys(Zotero.Server.Endpoints).find(path=>Zotero.Server.Endpoints[path]===Type);
+      if(!endpoint)throw new Error('Missing native endpoint');
+      const response=await Zotero.HTTP.request('POST','http://127.0.0.1:'+Zotero.Prefs.get('httpServer.port')+endpoint,{
+        body:JSON.stringify(data),headers:{'Content-Type':'application/json','Zotero-Allowed-Request':'1','User-Agent':'Mozilla/5.0 PaperLoop isolated regression'},timeout:15000
+      });
+      return JSON.parse(response.responseText);
+    };
     check(!!Resolve&&!!Notebook,'packaged plugin endpoints loaded');
+    // initializationPromise precedes collection/item UI binding on Zotero 7.
+    // Connector session.update() selects its destination in that UI.
+    if(Zotero.uiReadyPromise)await Zotero.uiReadyPromise;
+    if(/^7\./.test(Zotero.version)){
+      for(let i=0;i<300&&!Zotero.getActiveZoteroPane()?.collectionsView?.itemTreeView;i++)await Zotero.Promise.delay(100);
+      check(!!Zotero.getActiveZoteroPane()?.collectionsView?.itemTreeView,'Zotero 7 collection and item views ready');
+    }
     const lib=Zotero.Libraries.userLibraryID,target='L'+lib;
     const collection=new Zotero.Collection();collection.libraryID=lib;collection.name='Isolated fallback collection';await collection.saveTx();
     const targetID='C'+collection.id;
@@ -67,15 +83,26 @@ async function startup(addonData) {
     const core=syncWindow._currentEditorInstance._editorCore,json=JSON.parse(JSON.stringify(core.view.state.doc.toJSON()));let insertion;
     function locate(node,pos,isRoot=false){if(node.type==='text'){if(insertion===undefined&&node.text.includes('Native base text'))insertion=pos+node.text.length;return node.text.length;}let size=0;for(const child of node.content||[])size+=locate(child,pos+(isRoot?0:1)+size);return node.content?size+2:1;}
     locate(json,0,true);check(insertion!==undefined,'actual native editable paragraph located');
-    core.view.dispatch(core.view.state.tr.insertText(' + native change',insertion));await editor._editorInstance._save(JSON.parse(JSON.stringify(syncWindow.getDataSync(false))));await Zotero.Promise.delay(200);
+    // Match saveSync(): consume the dirty editor snapshot. getDataSync(false)
+    // leaves it pending and manufactures a stale second write during teardown.
+    core.view.dispatch(core.view.state.tr.insertText(' + native change',insertion));await editor._editorInstance._save(JSON.parse(JSON.stringify(syncWindow.getDataSync(true))));await Zotero.Promise.delay(200);
     const nativeChanged=note.getNote(),browserChanged=baseForSync.replace('Browser base text','Browser base text + browser change');
     const merged=scope.Zotero.PaperLoopSync.merge(baseForSync,browserChanged,nativeChanged);
     check(merged.ok&&merged.html.includes('+ native change')&&merged.html.includes('+ browser change'),'actual native and browser edits merge without dropping either side');
     const mergedDoc=new win.DOMParser().parseFromString(merged.html,'text/html');mergedDoc.querySelector('h1').remove();
     const finalHTML='<div data-schema-version="9"><h1>PaperLoop 思考</h1>'+makeFlow(mergedDoc.querySelector('div[data-schema-version]').innerHTML).serialized()+'</div>';
     state=await request(Notebook,{...nativeTarget,action:'save',baseHTML:nativeChanged,noteHTML:finalHTML});
+    await Zotero.Promise.delay(1500);
+    result.afterMerge={returnedKey:state.noteKey,key:note.key,attachments:note.getAttachments(),html:note.getNote(),editors:Zotero.Notes._editorInstances.filter(e=>e._item?.id===note.id).map(e=>({disabled:e._disableSaving,publicDisabled:e.disableSaving,id:e.instanceID}))};
     check(state.noteKey===note.key&&note.getAttachments().length===3&&note.getNote().includes('+ native change')&&note.getNote().includes('+ browser change'),'merged note reuses one native note and all three image attachments');
     for(const key of keys){const image=await request(Notebook,{...nativeTarget,action:'image',imageKey:key});check(image.dataURI.startsWith('data:image/png'),'native image readable after merged save '+key);}
+    let repeatBase=state.noteHTML;
+    for(let attempt=0;attempt<3;attempt++){
+      try{state=await request(Notebook,{...nativeTarget,action:'save',baseHTML:repeatBase,noteHTML:repeatBase.replace('+ browser change','+ browser change + second save')});break;}
+      catch(error){if(error.status!==409||attempt===2)throw error;const fresh=await request(Notebook,{...nativeTarget,action:'read'});check(scope.Zotero.PaperLoopSync.equal(repeatBase,fresh.noteHTML),'repeat-save retry is only native normalization');repeatBase=fresh.noteHTML;}
+    }
+    await Zotero.Promise.delay(1500);
+    check(note.getNote().includes('+ second save')&&note.getNote().includes('+ native change'),'repeated browser save survives open native editors');
     result.sync={baseHTML:baseForSync,normalizedHTML:normalized,nativeHTML:nativeChanged,mergedHTML:state.noteHTML};
     result.ok=true;
   }catch(error){result.error=String(error)+'\n'+(error.stack||'');Zotero.logError(error);}

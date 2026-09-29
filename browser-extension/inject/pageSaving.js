@@ -94,6 +94,11 @@ let PageSaving = {
 	 */
 	async onPageLoad(force) {
 		if (document.location == "about:blank") return;
+		// Article routes can display the notebook while slow/offscreen metadata
+		// detection is still starting. Search pages keep the existing exclusion.
+		if (globalThis.PaperLoopAutoDisplayPolicy?.classifyURL(window.location.href)==='literature') {
+			try { await this._paperLoopAutoDisplay(this.translators); } catch(error) { Zotero.logError(error); }
+		}
 
 		// Reset session on every init so a new save is triggered after JS-based changes
 		// (monitorDOMChanges/ZoteroItemUpdated)
@@ -127,6 +132,7 @@ let PageSaving = {
 	 * removes that unnecessary return trip.
 	 */
 	async _paperLoopAutoDisplay(translators) {
+		if (window.top && window.top !== window) return;
 		if (!Zotero.PaperLoopSidebar || !globalThis.PaperLoopAutoDisplayPolicy) return;
 		const key = 'paperloop:autoDisplayCategories:v2';
 		let categories;

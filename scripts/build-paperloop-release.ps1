@@ -6,8 +6,8 @@ $outputRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot $OutputDirectory
 if (!$outputRoot.StartsWith($repositoryRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Output must stay within this repository' }
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 foreach ($component in @(
-    @{Source='browser-extension';Name='PaperLoop-Browser-Extension';Version='0.3.28';Extension='zip'},
-    @{Source='zotero-plugin';Name='PaperLoop-for-Zotero';Version='0.5.4';Extension='xpi'}
+    @{Source='browser-extension';Name='PaperLoop-Browser-Extension';Version='0.3.35';Extension='zip'},
+    @{Source='zotero-plugin';Name='PaperLoop-for-Zotero';Version='0.5.5';Extension='xpi'}
 )) {
     $source = Join-Path $repositoryRoot $component.Source
     $manifest = Get-Content -LiteralPath (Join-Path $source 'manifest.json') -Raw | ConvertFrom-Json

@@ -1,4 +1,15 @@
-# PaperLoop theme photo sources
+# PaperLoop theme artwork
+
+## Illustrations (current)
+
+- `illustrations/*.svg`: original PaperLoop drawings (ink line and wash) for the seven themes: cow cat, shiba, iris, tide, warm paper, sage and ink. Drawn for PaperLoop; no third-party artwork, fonts or photos are used.
+- `watercolor/*.png`: watercolor square-collage versions of those same drawings. Regenerated with geometric alpha coverage by `scripts/theme-art/render_watercolor.py`, adapted from the delivered `demo/poster.py`. Transparent gaps and edges preserve white fur/highlights; the theme-colored halo is CSS, not baked into the image. No photo content.
+
+The notebook panel shows one of these per theme; the viewer chooses the style under Settings → 插画风格 / Illustration.
+
+## Earlier theme photos (no longer shown by the panel)
+
+The photos below were used by 0.3.27–0.3.32. The panel no longer loads them. They remain in this folder until the maintainers decide whether to remove them from the package.
 
 Theme photos are bundled unchanged so opening a notebook does not contact photo hosts. Credits and the licenses supplied by the pinned upstream repositories are retained below. Photos are not claimed as PaperLoop artwork.
 

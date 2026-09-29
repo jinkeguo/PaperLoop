@@ -9,7 +9,7 @@ Zotero.PaperLoopGallery = class {
 		.media-viewer{position:absolute;inset:0;z-index:4;background:#fafbf7;display:flex;flex-direction:column;padding:16px;border-radius:14px}.media-viewer-head{display:flex;align-items:center;justify-content:space-between;color:#85947a;font-size:11px}.media-viewer-close{font-size:20px;width:28px;height:28px;color:#7e8c74}.media-viewer-stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;margin:14px 0;background:#eef2e7;border:1px solid #e4eadb;border-radius:9px}.media-viewer-image{display:block;width:100%;height:100%;object-fit:contain;padding:9px}.media-viewer-image:not([src]){visibility:hidden}.media-viewer-message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:28px;text-align:center;font-size:12px;color:#929e86}.media-viewer-prev,.media-viewer-next{position:absolute;top:50%;transform:translateY(-50%);width:29px;height:35px;background:#fbfbf7ef;border:1px solid #dce4d4;color:#657d59;border-radius:6px;font-size:22px;box-shadow:0 2px 6px #324c2310}.media-viewer-prev{left:4px}.media-viewer-next{right:4px}.media-viewer-caption{font-size:12px;line-height:1.65;max-height:64px;overflow:auto;margin:0 0 5px;color:#4a6141}.media-viewer-info{font-size:10px;color:#91a087;margin:0 0 12px}.media-viewer-actions{display:flex;gap:8px;justify-content:space-between;align-items:center}.media-viewer-select{padding:8px 10px;font-size:11px;color:#617e54;background:#edf2e6}.media-viewer-download{color:#536f47;border:1px solid #dce5d2;border-radius:6px;font-size:11px;padding:8px 12px;text-decoration:none}.media-viewer-download[aria-disabled=true]{pointer-events:none;opacity:.4}@media(prefers-reduced-motion:reduce){.media-preview img,.media-progress-fill{transition:none}}
 		.media-top{padding-top:14px;padding-bottom:8px}.media-preview{height:88px}.media-caption{margin-top:7px;margin-bottom:3px}.media-detail{padding-bottom:7px}.media-viewer.expanded{position:fixed;inset:24px;box-shadow:0 12px 100px #152b2150}.media-viewer-head>span{flex:1}.media-viewer-expand{width:30px;height:28px;font-size:19px;color:#7e8c74;margin-right:6px}
 		</style><div class="media-top"><div><h3 class="media-title"></h3><p class="media-subtitle"></p></div><button class="media-select-all" type="button"></button></div>
-		<div class="media-scroll"><div class="media-items"></div><div class="media-empty" hidden><svg viewBox="0 0 56 56" aria-hidden="true"><rect x="7" y="13" width="36" height="31" rx="4"/><path d="M15 8h30a4 4 0 0 1 4 4v26M8 36l10-10 10 9 6-5 8 8"/><circle cx="32" cy="22" r="3"/></svg><span class="media-empty-title"></span><p class="media-empty-hint"></p></div></div>
+		<div class="media-scroll"><div class="media-items"></div><div class="media-empty" hidden><svg viewBox="0 0 76 64" aria-hidden="true"><g transform="rotate(-8 24 36)"><rect x="8" y="16" width="30" height="36" rx="2"/><rect x="12" y="20" width="22" height="20"/></g><g transform="rotate(6 46 32)"><rect class="front" x="30" y="10" width="34" height="40" rx="2"/><rect x="34" y="14" width="26" height="24"/><path d="M36 34l6-7 5 5 3-3 8 7"/><circle cx="53" cy="21" r="2.2"/></g><path class="clip" d="M47 3v10a3 3 0 0 1-6 0V6.5a2 2 0 0 1 4 0V12"/></svg><span class="media-empty-title"></span><p class="media-empty-hint"></p></div></div>
 		<div class="media-bottom"><div class="media-progress" hidden><div class="media-progress-fill"></div></div><div class="media-selection"><span class="media-selection-text"></span><button class="media-remove" type="button"></button></div><button class="media-save" type="button"></button><p class="media-note"></p></div>`;
 		this.el={}; for(const name of ['title','subtitle','select-all','scroll','items','empty','empty-title','empty-hint','bottom','progress','progress-fill','selection','selection-text','remove','save','note'])this.el[name]=root.querySelector('.media-'+name);
 		this.viewer=document.createElement('div'); this.viewer.className='media-viewer'; this.viewer.hidden=true;
@@ -26,6 +26,19 @@ Zotero.PaperLoopGallery = class {
 			if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();e.stopPropagation();this.openAt(this.viewerIndex+(e.key==='ArrowRight'?1:-1));}
 			if(e.key==='Tab'){const focus=[...this.viewer.querySelectorAll('button:not([disabled]):not([hidden]),a[href]')];const current=this.viewer.getRootNode().activeElement;const next=e.shiftKey?focus[focus.length-1]:focus[0];if((e.shiftKey&&current===focus[0])||(!e.shiftKey&&current===focus[focus.length-1])){e.preventDefault();next.focus();}}
 		});
+		// Keep the pressed card mounted until its click has run. In particular,
+		// blur from a rename field must not rebuild the button being clicked.
+		this.root.addEventListener('pointerdown',()=>{this.pointerActive=true;clearTimeout(this.pointerTimer);},true);
+		this.releasePointer=event=>{if(event.type==='blur'&&event.target!==window)return;clearTimeout(this.pointerTimer);this.pointerTimer=setTimeout(()=>{
+			this.pointerActive=false;if(this.dead)return;
+			const edit=this.renameEditor;if(edit&&!edit.form.contains(this.root.getRootNode().activeElement))this.finishRename();
+			this.render();
+		},0);};
+		for(const name of ['pointerup','pointercancel','blur'])window.addEventListener(name,this.releasePointer,true);
+		this.root.addEventListener('click',event=>{
+			const edit=this.renameEditor;
+			if(edit&&!edit.form.contains(event.target)&&!this.finishRename()){event.preventDefault();event.stopImmediatePropagation();}
+		},true);
 		this.render();
 	}
 	t(zh,en){return this.options.t(zh,en);}
@@ -52,6 +65,7 @@ Zotero.PaperLoopGallery = class {
 		if(this.renameEditor){this.controls();return;}
 		this.items=[...this.saved,...this.pending];
 		const signature=JSON.stringify(this.items.map(r=>[r.key,r.caption,r.error,r.status,(this.options.links?.(r)||[]).map(l=>l.title)]));
+		if(this.pointerActive&&signature!==this.signature){this.controls();return;}
 		if(signature!==this.signature){
 			this.signature=signature; const scroll=this.el.scroll.scrollTop;this.el.items.replaceChildren();
 			for(const [records,label] of [[this.saved,this.t('笔记中的图片','IN NOTE')],[this.pending,this.t('待保存','TO SAVE')]]){
@@ -87,7 +101,7 @@ Zotero.PaperLoopGallery = class {
 		const apply=document.createElement('button');apply.type='button';apply.className='media-name-apply';apply.textContent=this.t('完成','Done');apply.onclick=()=>this.finishRename();const cancel=document.createElement('button');cancel.type='button';cancel.className='media-name-cancel';cancel.textContent=this.t('取消','Cancel');cancel.onclick=()=>this.finishRename(false);const error=document.createElement('span');error.className='media-name-error';error.setAttribute('role','alert');
 		form.append(input,apply,cancel,error);row.hidden=true;row.after(form);this.renameEditor={record,card,row,form,input,error};
 		form.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key==='Escape'){event.preventDefault();event.stopPropagation();this.finishRename(event.key==='Enter');}});
-		form.addEventListener('focusout',event=>{if(this.renameEditor?.form===form&&!form.contains(event.relatedTarget))this.finishRename();});input.focus();input.select();
+		form.addEventListener('focusout',event=>{if(this.renameEditor?.form===form&&!form.contains(event.relatedTarget)&&!this.pointerActive)this.finishRename();});input.focus();input.select();
 	}
 	finishRename(apply=true){
 		const edit=this.renameEditor;if(!edit)return true;
@@ -180,5 +194,5 @@ Zotero.PaperLoopGallery = class {
 		}catch(e){if(!this.dead)this.options.message(e.message,'error');}
 		finally{if(!this.dead){this.busy=false;this.confirmRemoval=false;this.options.onBusy(false);this.controls();}}
 	}
-	dispose(){this.dead=true;this.renameEditor=null;this.jobs=[];this.thumbnails.clear();this.previewToken=(this.previewToken||0)+1;this.viewer.remove();}
+	dispose(){this.dead=true;clearTimeout(this.pointerTimer);for(const name of ['pointerup','pointercancel','blur'])window.removeEventListener(name,this.releasePointer,true);this.renameEditor=null;this.jobs=[];this.thumbnails.clear();this.previewToken=(this.previewToken||0)+1;this.viewer.remove();}
 };
