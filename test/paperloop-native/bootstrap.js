@@ -1,5 +1,9 @@
 /* Test-only: refuses to run against any personal profile or data directory. */
-async function startup(addonData) {
+function startup(addonData) {
+  // Do not hold the host's addon startup open while using its note editor.
+  Zotero.Promise.delay(0).then(()=>runTests(addonData)).catch(error=>Zotero.logError(error));
+}
+async function runTests(addonData) {
   await Zotero.initializationPromise;
   const profile=Services.dirsvc.get('ProfD',Ci.nsIFile),root=profile.parent;
   const normalize=value=>String(value).replace(/\\/g,'/').toLowerCase();
@@ -9,6 +13,10 @@ async function startup(addonData) {
   let editor;
   const check=(value,label)=>{if(!value)throw new Error(label);result.tests.push(label);};
   try {
+    const packageFile=profile.clone();packageFile.append('extensions');packageFile.append('paperloop-doi-bridge@paperloop.app.xpi');
+    const stream=Cc['@mozilla.org/network/file-input-stream;1'].createInstance(Ci.nsIFileInputStream);
+    const digest=Cc['@mozilla.org/security/hash;1'].createInstance(Ci.nsICryptoHash);
+    try{stream.init(packageFile,0x01,0,0);digest.init(digest.SHA256);digest.updateFromStream(stream,stream.available());result.packageSHA256=Array.from(digest.finish(false),c=>c.charCodeAt(0).toString(16).padStart(2,'0')).join('');}finally{stream.close();}
     for(let i=0;i<200&&!Zotero.Server.Endpoints['/connector/paperloop/notebook'];i++)await Zotero.Promise.delay(100);
     const Resolve=Zotero.Server.Endpoints['/connector/paperloop/resolve'];
     const Notebook=Zotero.Server.Endpoints['/connector/paperloop/notebook'];
@@ -52,6 +60,16 @@ async function startup(addonData) {
     check(invalid.items[0].status==='new','unrelated connector key is not linked by title');
     const expired=await request(Resolve,{...base,sessionID:'nonexistent-session'});
     check(expired.items[0].status==='new','missing session does not guess a parent');
+    const Snapshot=Zotero.Server.Endpoints['/connector/paperloop/add-snapshot'];
+    check(!!Snapshot,'packaged snapshot endpoint loaded');
+    const snapshotData={libraryID:lib,itemKey:item.key,url:'https://kns.cnki.net/kcms2/article/abstract?v=isolated-fixture',snapshotContent:'<!doctype html><html><head><meta charset="utf-8"><title>Snapshot fixture</title></head><body>Isolated CNKI article text</body></html>'};
+    const snapshots=await Promise.all([request(Snapshot,snapshotData),request(Snapshot,snapshotData)]);
+    check(snapshots[0].attachmentKey===snapshots[1].attachmentKey&&snapshots.filter(r=>r.created).length===1,'simultaneous native snapshot requests create one attachment');
+    const snapshotItem=await Zotero.Items.getByLibraryAndKeyAsync(lib,snapshots[0].attachmentKey);
+    check(snapshotItem.parentItemID===item.id&&snapshotItem.attachmentContentType==='text/html'&&await snapshotItem.fileExists(),'snapshot is an actual HTML file under the saved parent');
+    check((await Zotero.File.getContentsAsync(await snapshotItem.getFilePathAsync())).includes('Isolated CNKI article text'),'stored snapshot contains captured article text');
+    const snapshotState=await request(Zotero.Server.Endpoints['/connector/paperloop/state'],{libraryID:lib,itemKey:item.key});
+    check(snapshotState.hasSnapshot&&snapshotState.snapshotAttachmentKey===snapshotItem.key,'document state reports a usable native snapshot');
     const win=Zotero.getMainWindow(),canvas=win.document.createElementNS('http://www.w3.org/1999/xhtml','canvas');canvas.width=160;canvas.height=100;canvas.getContext('2d').fillRect(0,0,160,100);
     const nativeTarget={libraryID:lib,itemKey:item.key};
     let state=await request(Notebook,{...nativeTarget,action:'add-image',base64:canvas.toDataURL('image/png').split(',')[1],width:160,height:100,caption:'Fallback figure'});

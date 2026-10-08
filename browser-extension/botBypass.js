@@ -41,6 +41,8 @@ Zotero.BotBypass.BYPASS_TYPE = {
 	AMAZON_CAPTCHA: 'amazonCaptcha',
 };
 
+Zotero.BotBypass.HIDDEN_IFRAME_TIMEOUT = 20000;
+
 Zotero.BotBypass.canBotBypass = function(url, xhr) {
 	if (this.isAmazonCaptchaResponse(xhr)) {
 		return this.BYPASS_TYPE.AMAZON_CAPTCHA;
@@ -117,8 +119,18 @@ Zotero.BotBypass.passJSDetectionViaHiddenIframe = async function(url, tab, expec
 		};
 		browser.runtime.onMessage.addListener(messageListener);
 	});
+	// Attachment detection can reject before iframe injection finishes.
+	waitForAttachmentPromise.catch(() => {});
 
-	await browser.scripting.executeScript({
+	// The monitor frame may never load or report back (page removed, frame
+	// blocked). Bound the whole attempt so the caller can fall back instead of
+	// holding the save open forever.
+	let deadlineTimer;
+	const deadline = new Promise((_, reject) => {
+		deadlineTimer = setTimeout(() => reject(new Error('Hidden iframe bot bypass timed out')),
+			Zotero.BotBypass.HIDDEN_IFRAME_TIMEOUT);
+	});
+	const injectFrame = Promise.resolve().then(() => browser.scripting.executeScript({
 		target: { tabId: tab.id },
 		func: (url, id) => {
 			return new Promise((resolve, reject) => {
@@ -135,16 +147,22 @@ Zotero.BotBypass.passJSDetectionViaHiddenIframe = async function(url, tab, expec
 			});
 		},
 		args: [iframeUrl, id]
-	});
+	}));
+	// Losing the race must not surface later as an unhandled rejection.
+	injectFrame.catch(() => {});
+	deadline.catch(() => {});
 
 	try {
-		let pdfURL = await waitForAttachmentPromise;
+		await Promise.race([injectFrame, deadline]);
+		let pdfURL = await Promise.race([waitForAttachmentPromise, deadline]);
 		Zotero.debug(`Successfully passed JS bot detection for URL: ${url}`);
 		return pdfURL;
 	}
 	finally {
+		clearTimeout(deadlineTimer);
 		browser.runtime.onMessage.removeListener(messageListener);
-		await browser.scripting.executeScript({
+		// Cleanup is best-effort; a hung injection must not defeat the deadline.
+		Promise.resolve().then(() => browser.scripting.executeScript({
 			target: { tabId: tab.id },
 			func: (id) => {
 				const iframe = document.getElementById(id);
@@ -153,7 +171,7 @@ Zotero.BotBypass.passJSDetectionViaHiddenIframe = async function(url, tab, expec
 				}
 			},
 			args: [id]
-		});
+		})).catch(() => {});
 	}
 };
 

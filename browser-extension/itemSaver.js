@@ -68,6 +68,7 @@ let ItemSaver = function(options) {
 	}
 }
 ItemSaver._attachmentCallbackListenerAdded = false;
+ItemSaver.SNAPSHOT_CAPTURE_TIMEOUT = 60000;
 ItemSaver._attachmentCallbacks = {};
 
 ItemSaver.prototype = {
@@ -375,7 +376,21 @@ ItemSaver.prototype = {
 		try {
 			attachmentCallback(this._snapshotAttachment, 0);
 			let data = { items: this._items, sessionID: this._sessionID };
-			data.snapshotContent = await Zotero.SingleFile.retrievePageData();
+			// SingleFile has no limit of its own; a heavy page must not hold the
+			// whole save (and PaperLoop's save lock) open indefinitely.
+			let timer;
+			try {
+				data.snapshotContent = await Promise.race([
+					Zotero.SingleFile.retrievePageData(),
+					new Promise((_, reject) => {
+						timer = setTimeout(() => reject(new Error('Snapshot capture timed out')),
+							ItemSaver.SNAPSHOT_CAPTURE_TIMEOUT);
+					})
+				]);
+			}
+			finally {
+				clearTimeout(timer);
+			}
 			data.url = this._items[0].url || document.location.href;
 			data.title = this._snapshotAttachment.title;
 			await Zotero.Connector.saveSingleFile({

@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict'),summarize=require('./paperloop-e2e-result.cjs');
+const blocked={detection:{status:'verification'}},passed={ok:true};
+assert.equal(summarize({live:[blocked,blocked],controlledPassed:true}).status,'blocked');
+assert.equal(summarize({live:[blocked],controlledPassed:true}).ok,false,'fixture success cannot make all-blocked live acceptance pass');
+assert.equal(summarize({live:[],controlledPassed:true}).ok,false,'at least one real-page success is required');
+assert.equal(summarize({live:[passed],controlledPassed:false}).ok,false,'controlled failure remains failure');
+assert.equal(summarize({live:[{ok:'true'}],controlledPassed:true}).ok,false,'truthy strings are not acceptance');
+assert.equal(summarize({live:[passed,{detection:{status:'ready'}}],controlledPassed:true}).ok,false,'ready without completed real save is not success');
+assert.deepEqual(summarize({live:[passed,blocked],controlledPassed:true}),{ok:true,status:'passed',live:{total:2,passed:1,blocked:1,failed:0},controlled:{passed:true}});
+console.log('E2E outcome: real success, controlled success, blocked and incomplete live saves are reported independently');

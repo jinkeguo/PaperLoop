@@ -253,9 +253,12 @@ Zotero.Connector_Browser = new function() {
 				if (priorityEqual && !newTranslatorsAreFromTopFrame) return;
 			}	
 		}
-		
 		var isPDF = contentType == 'application/pdf';
-		_tabInfo[tab.id] = Object.assign(_tabInfo[tab.id] || {}, {translators, instanceID, isPDF});
+		// Remember which frame owns these translators. PaperLoop saves must be
+		// answered by that frame only (see saveWithTranslator).
+		_tabInfo[tab.id] = Object.assign(_tabInfo[tab.id] || {}, {
+			translators, instanceID, isPDF, translatorFrameId: frameId
+		});
 		
 		Zotero.Connector_Browser._updateExtensionUI(tab);
 		if (tabInfo.paperLoopPinned && !tabInfo.paperLoopPinnedByAuto) {
@@ -1216,30 +1219,80 @@ Zotero.Connector_Browser = new function() {
 	const PAPERLOOP_LEGACY_LINK_PREFIX = 'paperloop:link:v1:';
 	const PAPERLOOP_LINK_PREFIX = 'paperloop:link:v2:';
 	const PAPERLOOP_TRANSLATOR_REFRESH_TIMEOUT = 4000;
+	const PAPERLOOP_SAVE_DETECTION_TIMEOUT = 22000;
+	const PAPERLOOP_SNAPSHOT_TIMEOUT = 45000;
 	let _paperLoopAutoDisplayCategories = PaperLoopAutoDisplayPolicy.normalizeCategories();
 
 	async function _paperLoopRefreshTranslatorState(tab) {
 		let tabInfo = Zotero.Connector_Browser.getTabInfo(tab.id);
 		if (tabInfo.translators && tabInfo.translators.length) return tabInfo;
 
+		let timer;
 		try {
-			// Reuse the Connector's existing pageModified listener. It calls the
-			// supplied Translator engine's PageSaving.onPageLoad(true) path.
-			await Zotero.Messaging.sendMessage('pageModified', null, tab, 0);
+			const detection = await Promise.race([
+				Zotero.Messaging.sendMessage('paperLoopDetect', null, tab, 0),
+				new Promise(resolve => { timer = setTimeout(() => resolve({status: 'loading'}), PAPERLOOP_SAVE_DETECTION_TIMEOUT); })
+			]);
+			tabInfo = Zotero.Connector_Browser.getTabInfo(tab.id);
+			if (detection?.verification || detection?.status === 'verification') {
+				tabInfo.paperLoopDetection = {...detection, status: 'verification'};
+				return tabInfo;
+			}
+			if (detection?.url && _paperLoopDocumentKey({url: detection.url}) !== _paperLoopDocumentKey(tab)) {
+				throw new Error('页面已切换，请返回文献详情页后保存');
+			}
+			tabInfo.paperLoopDetection = detection || {status: 'error'};
 		}
 		catch (error) {
 			Zotero.debug(`PaperLoop translator refresh request failed: ${error.message}`);
+			if (/页面已切换/.test(error.message)) throw error;
+			tabInfo.paperLoopDetection = {status: 'unavailable'};
 		}
-
-		const deadline = Date.now() + PAPERLOOP_TRANSLATOR_REFRESH_TIMEOUT;
-		do {
-			await Zotero.Promise.delay(250);
-			tabInfo = Zotero.Connector_Browser.getTabInfo(tab.id);
-			if (tabInfo.translators && tabInfo.translators.length) return tabInfo;
-		} while (Date.now() < deadline);
-
+		finally { clearTimeout(timer); }
 		return tabInfo;
 	}
+
+	function _paperLoopDetectionError(tabInfo) {
+		switch (tabInfo.paperLoopDetection?.status) {
+			case 'verification': return '知网正在进行安全验证，请完成验证并回到文献详情页后保存';
+			case 'missing-metadata': return '知网页面缺少文献信息，请等待加载或刷新详情页后保存；草稿已保留';
+			case 'loading': return '文献信息仍在加载，请稍后再保存；草稿已保留';
+			case 'timeout': return '文献识别超时，请再次保存以重新识别；草稿已保留';
+			case 'error': return '文献识别出错，请刷新网页后重试；草稿已保留';
+			case 'unavailable': return '扩展暂未连接到当前网页，请刷新网页后保存；草稿已保留';
+			default: return '未识别到当前文献，请在文献详情页保存；草稿已保留';
+		}
+	}
+
+	async function _paperLoopSupplementSnapshot(tab, identity) {
+		if (!identity?.itemKey || !identity.libraryID
+			|| !/^https?:\/\/(?:[a-z0-9-]+\.)*cnki\.net\/kcms2?\/(?:article\/abstract|detail\/detail\.aspx)/i.test(tab.url || '')) return;
+		let timer;
+		try {
+			const result = await Promise.race([
+				Zotero.Messaging.sendMessage('paperLoopSaveSnapshot', {
+					libraryID: identity.libraryID, itemKey: identity.itemKey, url: tab.url
+				}, tab, 0),
+				new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('SNAPSHOT_TIMEOUT')), PAPERLOOP_SNAPSHOT_TIMEOUT); })
+			]);
+			if (['saved', 'present'].includes(result?.status) && /^[A-Z0-9]{8}$/.test(result.attachmentKey || '')) return result;
+			if (result?.status === 'skipped' && ['AUTOMATIC_SNAPSHOTS_DISABLED', 'FILES_NOT_EDITABLE'].includes(result.reason)) return result;
+			// The shared messaging wrapper can return undefined when its receiver
+			// disappears. A requested capture requires an explicit acknowledgement.
+			throw new Error(result?.status === 'failed' ? result.message || 'SNAPSHOT_FAILED' : 'SNAPSHOT_UNCONFIRMED');
+		}
+		catch (error) {
+			Zotero.logError(error);
+			return {status: 'failed', message: /0\.5\.6/.test(error.message || '')
+				? '文献和笔记已保存。请安装 PaperLoop for Zotero 0.5.6 后，再次保存补存快照'
+					: '文献和笔记已保存，网页快照保存未确认；再次保存可重试'};
+		}
+		finally { clearTimeout(timer); }
+	}
+
+	// Internal save orchestration: rich notes/images call this after committing
+	// their content, so an unavailable page capture cannot block the note write.
+	this.paperLoopSupplementSnapshot = _paperLoopSupplementSnapshot;
 
 	async function _paperLoopLoadAutoDisplayCategories() {
 		try {
@@ -1778,7 +1831,11 @@ Zotero.Connector_Browser = new function() {
 			throw new Error('请先选择保存到哪个 Zotero 分类');
 		}
 		if (_paperLoopSavesInFlight.has(tab.id)) {
-			return _paperLoopSavesInFlight.get(tab.id);
+			const pending = _paperLoopSavesInFlight.get(tab.id);
+			if (pending.paperLoopSignature !== JSON.stringify([documentKey, targetID, payload])) {
+				throw new Error('上一笔保存仍在处理中，本次内容或分类已变化；请等上一笔完成后再保存，本次草稿未改动');
+			}
+			return _paperLoopWithSaveDeadline(pending);
 		}
 
 		const savePromise = (async () => {
@@ -1830,10 +1887,12 @@ Zotero.Connector_Browser = new function() {
 						noteKey: response.noteKey || existingLink.noteKey,
 						targetID
 					});
+					const snapshot = payload.deferSnapshot ? undefined : await _paperLoopSupplementSnapshot(tab, existingLink);
 					return {
 						ok: true,
 						mode: note ? 'sync' : 'classify',
-						...response
+						...response,
+						snapshot
 					};
 				}
 				catch (error) {
@@ -1847,7 +1906,7 @@ Zotero.Connector_Browser = new function() {
 				tabInfo = await _paperLoopRefreshTranslatorState(tab);
 			}
 			if (!tabInfo.translators || !tabInfo.translators.length) {
-				throw new Error('当前页面尚未被 Zotero Translator 识别');
+				throw new Error(_paperLoopDetectionError(tabInfo));
 			}
 			const eventID = Zotero.Utilities.randomString(24);
 			const savedItems = await Zotero.Connector_Browser.saveWithTranslator(
@@ -1864,6 +1923,11 @@ Zotero.Connector_Browser = new function() {
 					}
 				}
 			);
+			if (!Array.isArray(savedItems) || !savedItems.length) {
+				// No answer from the translating frame: the page navigated, the save
+				// was declined, or messaging failed. Never report this as saved.
+				throw new Error('网页没有返回保存结果，Zotero 可能未收到文献；请稍后重试，草稿已保留');
+			}
 			let resolution = _paperLoopFindResolution(
 				(savedItems || []).map(item => item && item.paperLoop)
 			);
@@ -1882,26 +1946,48 @@ Zotero.Connector_Browser = new function() {
 					targetID
 				});
 			}
-			else if ((savedItems || []).some(item => item && String(item.DOI || '').trim())) {
+			else {
 				throw new Error('Zotero 已收到文献，但 PaperLoop 未能确认对应条目或思考笔记；请重试');
 			}
+			const snapshot = payload.deferSnapshot ? undefined : await _paperLoopSupplementSnapshot(tab, resolution && {
+				...resolution, libraryID: resolution.libraryID || target.libraryID
+			});
 			return {
 				ok: true,
 				mode: linkedBeforeTranslator && resolution ? 'sync' : 'save',
 				translatorLabel: tabInfo.translators[0].label || '',
 				itemCount: Array.isArray(savedItems) ? savedItems.length : null,
-				...(resolution || {})
+				...(resolution || {}),
+				snapshot
 			};
 		})();
 
+		// Keep the lock until the save really settles, even after the deadline:
+		// a retry then waits for the same save instead of starting a duplicate.
+		savePromise.paperLoopSignature = JSON.stringify([documentKey, targetID, payload]);
 		_paperLoopSavesInFlight.set(tab.id, savePromise);
-		try {
-			return await savePromise;
-		}
-		finally {
-			_paperLoopSavesInFlight.delete(tab.id);
-		}
+		const release = () => {
+			if (_paperLoopSavesInFlight.get(tab.id) === savePromise) _paperLoopSavesInFlight.delete(tab.id);
+		};
+		savePromise.then(release, release);
+		return _paperLoopWithSaveDeadline(savePromise);
 	};
+
+	// Bound waiting, not execution: we cannot cancel a native write safely.
+	// Keep the lock until settlement; do not claim timeout aborted the save.
+	const PAPERLOOP_SAVE_TIMEOUT = 180000;
+
+	async function _paperLoopWithSaveDeadline(promise) {
+		let timer;
+		try {
+			return await Promise.race([promise, new Promise((_, reject) => {
+				timer = setTimeout(() => reject(new Error(
+					'文献保存超过 3 分钟仍未完成，已停止等待；草稿已保留。可再次保存，或刷新网页后重试'
+				)), PAPERLOOP_SAVE_TIMEOUT);
+			})]);
+		}
+		finally { clearTimeout(timer); }
+	}
 
 	/**
 	 * @param tab <Tab>
@@ -1914,9 +2000,19 @@ Zotero.Connector_Browser = new function() {
 	this.saveWithTranslator = function(tab, i, options={}) {
 		let tabInfo = this.getTabInfo(tab.id);
 		var translator = tabInfo.translators[i];
-		
+
 		// Set frameId to null - send message to all frames
 		// There is code to figure out which frame should translate with instanceID.
+		// PaperLoop uses the response, so it must target the translating frame:
+		// any other injected frame answers `undefined` immediately and the first
+		// answer wins, which would drop the saved items while the save continues.
+		let frameId = null;
+		if (options.paperLoop && Number.isInteger(tabInfo.translatorFrameId)) {
+			frameId = tabInfo.translatorFrameId;
+		}
+		else if (options.paperLoop) {
+			throw new Error('尚未确认文献所在框架，请等待网页重新识别后再保存');
+		}
 		return Zotero.Messaging.sendMessage(
 			"translate",
 			[
@@ -1925,10 +2021,10 @@ Zotero.Connector_Browser = new function() {
 				options
 			],
 			tab,
-			null
+			frameId
 		);
 	}
-	
+
 	this.saveAsWebpage = async function(tab, frameId, options={}) {
 		let tabInfo = this.getTabInfo(tab.id);
 		if (tabInfo.uninjectable) {

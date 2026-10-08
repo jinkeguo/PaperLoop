@@ -54,7 +54,7 @@
 			|| /\/content\/journals\/10\./.test(path)) {
 			return 'literature';
 		}
-		if (/(?:^|\/)(?:defaultresult|search|results?|starter|advsearch)(?:[/.]|$)/.test(path)) {
+		if (/(?:^|\/)(?:default_?result|search|results?|starter|advsearch)(?:[/.]|$)/.test(path)) {
 			return 'result-list';
 		}
 		return null;

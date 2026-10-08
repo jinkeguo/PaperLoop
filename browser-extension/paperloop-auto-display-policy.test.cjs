@@ -35,6 +35,11 @@ assert.equal(policy.classifyTabInfo({
 	url: 'https://kns.cnki.net/kns8s/defaultresult/index?kw=test',
 	translators: [{itemType: 'journalArticle'}]
 }), 'result-list', 'CNKI result routes remain manual even if detection is temporarily concrete');
+for (const translators of [[], [{itemType:'webpage'}], [{itemType:'journalArticle'}]]) {
+	const category=policy.classifyTabInfo({url:'https://kns.cnki.net/kns/brief/default_result.aspx',translators});
+	assert.equal(category,'result-list','legacy CNKI searches remain manual even before results load');
+	assert.equal(policy.shouldAutoDisplay(category,{literature:true,webpage:true}),false);
+}
 assert.equal(policy.classifyTabInfo({
 	url: 'https://www.sciencedirect.com/search?qs=evtol',
 	translators: [{itemType: 'journalArticle'}]

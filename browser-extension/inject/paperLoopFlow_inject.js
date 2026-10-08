@@ -229,6 +229,9 @@ Zotero.PaperLoopFlow = class {
 Zotero.PaperLoopThemes={
  // Token order: bg, paper, gallery, text, muted, line, accent, soft, on, pop, warm.
  palettes:{
+  sakura:{name:'樱雾奶牛猫',base:'cowcat',light:['#f5edf3','#fffdfc','#eaf1f5','#342e3d','#756575','#dcd3df','#705378','#f5e3ed','#ffffff','#a54f6c','#f4dbcf'],dark:['#28232e','#322c37','#263940','#f5eaf2','#c6b6c8','#514553','#dab3d7','#453447','#2c2230','#f2b4ac','#513834']},
+  apricot:{name:'暮杏柴犬',base:'shiba',light:['#f6eee4','#fffdf9','#e8efeb','#3b302b','#786b62','#dfd7c8','#956044','#f8e7d4','#ffffff','#4f796a','#efd3bb'],dark:['#292824','#34302b','#273c36','#f4eee3','#c5bbaa','#514a3e','#e6b58b','#493a2c','#30261e','#a3c9b5','#52392d']},
+  lagoon:{name:'海盐落日',base:'tide',light:['#eaf2f3','#fcfdfb','#fae9df','#293d44','#62767a','#cbdfe0','#356f78','#deeeee','#ffffff','#b55d48','#f3d5c6'],dark:['#202d32','#29383b','#40312d','#e9f3ef','#afc4c3','#40575a','#a7d1d1','#304e52','#203336','#efb29a','#533a30']},
   cowcat:{name:'奶牛猫',light:['#f6f5f3','#fffefb','#fbefef','#1f2226','#6d6f73','#e4e0da','#2a2c30','#fbefef','#ffffff','#b8565a','#fde9e9'],dark:['#1d1f22','#26292d','#2f2a2c','#eeeeee','#b3b5b8','#3e4146','#f0a3a5','#3a2e30','#1d1f22','#f0a3a5','#3f2f31']},
   shiba:{name:'柴犬',light:['#fbf3e8','#fffdf9','#fcf0e4','#3a2a1f','#8a7263','#eeddc9','#df8a45','#fcf0e4','#ffffff','#c8452f','#fde3d3'],dark:['#2a2421','#302a27','#3a2e25','#f3ece6','#c5b9b1','#4f443d','#edb294','#3f3129','#372217','#f0a58a','#4b3629']},
   iris:{name:'鸢尾',light:['#f3f1f8','#fdfcff','#f0ecf8','#2c2340','#6f6782','#e2ddec','#6247b3','#f2eefa','#ffffff','#6247b3','#efe9fa'],dark:['#242229','#2e2a33','#393143','#efeaf4','#c2b7c9','#4b4254','#cdb4e1','#41364d','#302039','#dec497','#49402f']},
@@ -242,17 +245,22 @@ Zotero.PaperLoopThemes={
  arts:['ink','watercolor'],
  resolve(id){id=this.legacy[id]||id;return this.palettes[id]?id:'cowcat';},
  colors(id,dark){const keys=['bg','paper','gallery','text','muted','line','accent','soft','on','pop','warm'],values=this.palettes[this.resolve(id)][dark?'dark':'light'];return Object.fromEntries(keys.map((key,i)=>[key,values[i]]));},
- illustration(id,art){return 'images/paperloop-themes/'+(art==='watercolor'?'watercolor/'+id+'.png':'illustrations/'+id+'.svg');},
+ illustration(id,art){id=this.palettes[this.resolve(id)].base||this.resolve(id);return 'images/paperloop-themes/'+(art==='watercolor'?'watercolor/'+id+'.png':'illustrations/'+id+'.svg');},
  apply(shadow,appearance){
   const id=this.resolve(appearance.theme),theme=this.palettes[id],art=this.arts.includes(appearance.art)?appearance.art:'ink';
   const dark=appearance.mode==='dark'||appearance.mode!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches;
-  const panel=shadow.querySelector('.panel'),colors=this.colors(id,dark),motif=this.motifs[id];
+  const panel=shadow.querySelector('.panel'),colors=this.colors(id,dark),motif=this.motifs[theme.base||id];
   const tokens={...colors,ink:dark?colors.muted:motif.ink,edge:dark?'#00000070':motif.edge,mark:motif.mark,trail:motif.trail,ear:this.ears[motif.ear],'ear-color':motif.earColor||colors.accent};
   // The minimized ribbon sits outside .panel, so it needs the same tokens.
   for(const node of [panel,shadow.querySelector('.mini')])if(node)for(const [key,value] of Object.entries(tokens))node.style.setProperty('--'+key,value);
   panel.style.colorScheme=dark?'dark':'light';Object.assign(panel.dataset,{theme:id,art,ear:motif.ear,dark:String(dark)});shadow.querySelector('.theme-toggle').textContent=theme.name+'⌄';
   const img=shadow.querySelector('.theme-photo');img.hidden=false;
   const url=browser.runtime.getURL(this.illustration(id,art));if(img.getAttribute('src')!==url)img.src=url;
+  const mini=shadow.querySelector('.mini'),pet=mini.querySelector('.pet-image');
+  mini.dataset.kind=appearance.minimizeMode==='ribbon'?'ribbon':'pet';
+  const animal=['cowcat','shiba'].includes(appearance.pet)?appearance.pet:(theme.base||id)==='shiba'?'shiba':'cowcat';
+  mini.dataset.animal=animal;
+  const petURL=browser.runtime.getURL('images/paperloop-themes/pets/'+animal+'.svg');if(pet.getAttribute('src')!==petURL)pet.src=petURL;
  }
 };
 {
@@ -379,6 +387,16 @@ Zotero.PaperLoopThemes={
  .backups h3{font:500 18px/1.3 var(--serif)}
  .mini{width:34px;height:112px;padding:8px 0 0;border:0;border-radius:0;background:var(--accent);color:var(--on);box-shadow:none;clip-path:polygon(0 0,100% 0,100% 100%,50% 92%,0 100%);display:flex;flex-direction:column;align-items:center;gap:4px;font:11.5px/1 'Segoe Print','Bradley Hand',cursive;writing-mode:horizontal-tb;overflow:hidden}
  .mini-mark{${mark(15)}}.mini span{writing-mode:vertical-rl;letter-spacing:-.2px}
+ .pet-image{display:none}
+ .mini[data-kind=pet]{position:relative;width:104px;height:112px;padding:0;overflow:visible;clip-path:none;background:transparent;border-radius:22px;color:var(--text);outline-offset:3px;isolation:isolate}
+ .mini[data-kind=pet] .pet-image{display:block;position:absolute;inset:0;width:104px;height:104px;max-width:none;pointer-events:none;filter:drop-shadow(0 2px 1px #00000010)}
+ .mini[data-kind=pet] .mini-mark{display:none}
+ .mini[data-kind=pet] span{position:absolute;bottom:0;left:50%;transform:translateX(-50%);writing-mode:horizontal-tb;font-size:10px;white-space:nowrap;background:var(--paper);color:var(--text);border:1px solid var(--line);border-radius:20px;padding:3px 7px;box-shadow:0 2px 4px #0000000a;opacity:0;transition:opacity .15s}
+ .mini[data-kind=pet]:hover span,.mini[data-kind=pet]:focus-visible span{opacity:1}
+ .mini:focus-visible{outline:2px solid var(--pop)}
+ .mini[data-kind=pet]:hover .pet-image{transform:translateY(-2px)}
+ @media(prefers-reduced-motion:reduce){.mini[data-kind=pet]:hover .pet-image{transform:none}.mini[data-kind=pet] span{transition:none}}
+ .panel[data-theme=sakura],.panel[data-theme=apricot],.panel[data-theme=lagoon]{background-image:radial-gradient(ellipse at 100% 0%,var(--warm),transparent 58%),radial-gradient(ellipse at 0% 100%,var(--gallery),transparent 65%)}
  .panel[data-compact=true]{--gutter:22px}.panel[data-compact=true] .brand{font-size:20px}.panel[data-compact=true] .context .title{font-size:14.5px;max-width:48%}.panel[data-compact=true] .editor>.flow-deletable::before{font-size:9px}
  @media(prefers-reduced-motion:reduce){.save:active:not(:disabled),.panel-tools .image-import:active:not(:disabled){transform:none}}
  `;

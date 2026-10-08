@@ -10,3 +10,5 @@
 浏览器端编辑区使用原生 contenteditable；没有把 ProseMirror 作为浏览器端编辑器打包。 / The browser editing area uses native contenteditable; ProseMirror is not bundled as its browser editor.
 
 摄影主题署名与许可 / Theme photo credits and licenses: [SOURCES.md](../browser-extension/images/paperloop-themes/SOURCES.md).
+
+浏览器宠物交互参考 / Browser companion interaction references: [VS Code Pets](https://github.com/tonybaloney/vscode-pets), Tony Baloney and contributors; [oneko.js](https://github.com/adryd325/oneko.js), adryd325 and contributors. 宠物插画为 PaperLoop 新绘制，未打包这些项目的代码或素材。 / Pet artwork is newly drawn for PaperLoop; no code or artwork from these reference projects is bundled.

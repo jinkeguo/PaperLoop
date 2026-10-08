@@ -121,6 +121,8 @@ Zotero.Inject = {
     Zotero.Messaging.addMessageListener("pageModified", Zotero.Utilities.debounce(function () {
       Zotero.PageSaving.onPageLoad(true);
     }, 1000));
+    Zotero.Messaging.addMessageListener('paperLoopDetect', () => Zotero.PageSaving.paperLoopDetect());
+    Zotero.Messaging.addMessageListener('paperLoopSaveSnapshot', data => Zotero.PageSaving.paperLoopSaveSnapshot(data));
     Zotero.Messaging.addMessageListener('historyChanged', Zotero.Utilities.debounce(function () {
       Zotero.PageSaving.onPageLoad(true);
     }, 1000));

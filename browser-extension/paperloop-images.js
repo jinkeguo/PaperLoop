@@ -7,11 +7,55 @@ Zotero.PaperLoopImages = new function () {
 	const identicalRequests = new Map();
 	let queueWrites = Promise.resolve();
 	let captureOrder = 0;
+	const imageOrder = (a,b) => a.createdAt-b.createdAt || (a.order||0)-(b.order||0) || a.id.localeCompare(b.id);
+	const imageMetadata = image => ({id:image.id,caption:image.caption||'',width:image.width,height:image.height,createdAt:image.createdAt,order:image.order});
+	const decodeAttribute = value => String(value||'').replace(/&(#x[0-9a-f]+|#\d+|quot|apos|amp|lt|gt);/gi,(_,code)=>code[0]==='#'?String.fromCodePoint(Math.min(0x10ffff,parseInt(code.slice(code[1]?.toLowerCase()==='x'?2:1),code[1]?.toLowerCase()==='x'?16:10))):({quot:'"',apos:"'",amp:'&',lt:'<',gt:'>'})[code.toLowerCase()]);
+	function savedImageMetadata(html){
+		const images=[];
+		for(const tag of String(html||'').match(/<img\b[^>]*>/gi)||[]){
+			const attrs={};for(const match of tag.matchAll(/([\w-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g))attrs[match[1].toLowerCase()]=decodeAttribute(match[2]??match[3]);
+			const imageKey=attrs['data-attachment-key'];if(!/^[A-Z0-9]{8}$/.test(imageKey||'')||images.some(r=>r.imageKey===imageKey))continue;
+			images.push({imageKey,caption:attrs.alt||'',width:Number(attrs.width)||640,height:Number(attrs.height)||480});
+		}return images;
+	}
+	async function backupImages(payload,tab,documentKey,pending){
+		const images=[...pending],mappings={},saved=savedImageMetadata(payload.html);
+		if(!saved.length)return {images,mappings};
+		const remote=payload.libraryID&&/^[A-Z0-9]{8}$/.test(payload.itemKey||'')?{status:'existing',libraryID:payload.libraryID,itemKey:payload.itemKey}:await Zotero.Connector_Browser.paperLoopGetDocumentState(payload,tab,0);
+		if(remote.status!=='existing')throw new Error('图片所属笔记暂不可用，未生成不完整备份');
+		const map=(await browser.storage.local.get('paperloop:image-map:v1:'+documentKey))['paperloop:image-map:v1:'+documentKey]||{};
+		const retained=(await storage('getAll',undefined,'recoveryMedia')).filter(r=>r.documentKey===documentKey);
+		for(const meta of saved){
+			const matches=value=>value&&value.imageKey===meta.imageKey&&value.libraryID===remote.libraryID&&value.itemKey===remote.itemKey;
+			const pair=Object.entries(map).find(([,value])=>matches(value));
+			const local=retained.find(r=>matches(r.nativeIdentity)||(r.nativeIdentities||[]).some(matches))||retained.find(r=>r.id===pair?.[0]);
+			const id=local?.id||pair?.[0]||`saved-${remote.libraryID}-${remote.itemKey}-${meta.imageKey}`;
+			const identity={imageKey:meta.imageKey,libraryID:remote.libraryID,itemKey:remote.itemKey};
+			let media=local;
+			if(!media){const result=await bridge({action:'image',...identity});const fetched=await fetchImage({url:result.dataURI,kind:'local'},tab.url);media={...fetched,id,documentKey,pageURL:tab.url,createdAt:Date.now(),order:++captureOrder};}
+			const image={...media,...meta,id,nativeIdentity:identity};
+			const index=images.findIndex(r=>r.id===id);if(index<0)images.push(image);else images[index]=image;
+			mappings[id]=identity;
+		}return {images,mappings};
+	}
 	const encode = bytes => {
 		let binary = ''; for (let i=0; i<bytes.length; i+=32768) binary += String.fromCharCode(...bytes.subarray(i,i+32768));
 		return btoa(binary);
 	};
 	const keyFor = value => { const url = new URL(value); url.hash = ''; return url.href; };
+	// Same conservative tracking-only rule as the sidebar.
+	const sameDocument = (a,b) => {
+		try {
+			const x=new URL(a), y=new URL(b);
+			if (x.origin!==y.origin || x.pathname!==y.pathname) return false;
+			// Only known tracking parameters are non-identifying. Never infer that
+			// adding/removing an arbitrary id, v, filename, or repeated value is safe.
+			const identity = url => JSON.stringify([...url.searchParams].filter(([key]) =>
+				!/^utm_/i.test(key) && !/^(?:fbclid|gclid|msclkid|via)$/i.test(key) && key.toLowerCase()!=='via=ihub'
+			).sort(([ak,av],[bk,bv])=>ak.localeCompare(bk)||av.localeCompare(bv)));
+			return identity(x)===identity(y);
+		} catch (_) { return false; }
+	};
 	const emptyPlaceholder = html => !/<(?:img|table|a|hr)\b|data-(?:citation|annotation)/i.test(html||'')
 		&& !String(html||'').replace(/<!--[\s\S]*?-->/g,'').replace(/<[^>]*>/g,'').replace(/&nbsp;|&#160;|\u00a0/g,' ').replace(/^\s*PaperLoop 思考\s*/,'').trim();
 	const errorText = error => {
@@ -83,6 +127,7 @@ Zotero.PaperLoopImages = new function () {
 	async function saveQueued(record, payload, tab) {
 		if(busy.has(record.id))return busy.get(record.id);
 		const operation=(async()=>{
+			let createdParent=false;
 			await bridge({action:'capabilities'});
 			tab=await current(tab, record.documentKey);
 			let state=await Zotero.Connector_Browser.paperLoopGetDocumentState({...payload,documentKey:record.documentKey},tab,0);
@@ -90,7 +135,8 @@ Zotero.PaperLoopImages = new function () {
 				if(!payload.confirmCreate)throw new Error('请先确认文献和分类，再保存图片');
 				const info=Zotero.Connector_Browser.getTabInfo(tab.id);
 				if ((info.translators||[]).some(t=>t.itemType==='multiple')) throw new Error('请到单篇文献详情页保存图片');
-				await Zotero.Connector_Browser.paperLoopSaveThought({...payload, thought:'', documentKey:record.documentKey},tab,0);
+				await Zotero.Connector_Browser.paperLoopSaveThought({...payload, thought:'', documentKey:record.documentKey,deferSnapshot:true},tab,0);
+				createdParent=true;
 				tab=await current(tab,record.documentKey);
 				state=await Zotero.Connector_Browser.paperLoopGetDocumentState({...payload,documentKey:record.documentKey},tab,0);
 			}
@@ -102,10 +148,13 @@ Zotero.PaperLoopImages = new function () {
 			// A closed tab can then recover pending associations without guessing captions.
 			const mapKey='paperloop:image-map:v1:'+record.documentKey;
 			const storedMap=(await browser.storage.local.get(mapKey))[mapKey]||{};
-			storedMap[record.id]={imageKey:result.imageKey,libraryID:state.libraryID,itemKey:state.itemKey};
+			storedMap[record.id]={...imageMetadata(record),imageKey:result.imageKey,libraryID:state.libraryID,itemKey:state.itemKey};
 			const entries=Object.entries(storedMap).slice(-512);await browser.storage.local.set({[mapKey]:Object.fromEntries(entries)});
+			const recovery=await storage('get',record.id,'recoveryMedia');
+			if(recovery){const identity={imageKey:result.imageKey,libraryID:state.libraryID,itemKey:state.itemKey};await storage('put',{...recovery,nativeIdentity:identity,nativeIdentities:[...(recovery.nativeIdentities||[]),...(recovery.nativeIdentity?[recovery.nativeIdentity]:[]),identity]},'recoveryMedia');}
 			await storage('delete',record.id);
 			if(!payload.quiet)await notify(tab,`${result.repeated?'图片已在笔记中':'图片已保存'} · ${record.width} × ${record.height}`, 'ready', {documentKey:record.documentKey});
+			if(createdParent){const snapshot=await Zotero.Connector_Browser.paperLoopSupplementSnapshot(tab,{libraryID:state.libraryID,itemKey:state.itemKey});return {...result,snapshot};}
 			return result;
 		})();
 		busy.set(record.id,operation);
@@ -158,14 +207,52 @@ Zotero.PaperLoopImages = new function () {
 				await storage('put',record);return {id:record.id};
 			});queueWrites=operation;return operation;
 		}
-		if(action==='backups')return (await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey&&r.targetID===payload.targetID).sort((a,b)=>b.updatedAt-a.updatedAt).map(({html,baseHTML,imageNames,removedImages,fingerprint,...r})=>({...r,preview:html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').replace(/^\s*PaperLoop 思考\s*/,'').trim().slice(0,100)}));
+		if(action==='rekey'){
+			// Validate independently of the page. Move all media stores atomically,
+			// never only the non-busy subset of a running image batch.
+			const from=String(payload.fromKey||'');
+			if(!sameDocument(from,documentKey))throw new Error('只能迁移同一文献页面的图片与备份');
+			if(from===documentKey)return {ok:true,moved:0};
+			const operation=queueWrites.catch(()=>{}).then(async()=>{
+				await current(tab,documentKey);
+				const storeNames=['pending','history','recoveryMedia'],rows={};
+				for(const storeName of storeNames)rows[storeName]=(await storage('getAll',undefined,storeName)).filter(record=>record.documentKey===from);
+				if(rows.pending.some(record=>busy.has(record.id)))throw new Error('图片仍在保存，暂不迁移地址；原图片与草稿已保留');
+				const fromMap='paperloop:image-map:v1:'+from,toMap='paperloop:image-map:v1:'+documentKey;
+				const all=await browser.storage.local.get(null),copy={};
+				for(const [id,value] of Object.entries(all[fromMap]||{})){
+					const existing=all[toMap]?.[id];
+					if(existing&&(existing.itemKey!==value.itemKey||existing.libraryID!==value.libraryID||existing.imageKey!==value.imageKey))throw new Error('新地址的图片关联不同，已保留两边数据，未迁移');
+				}
+				if(all[fromMap])copy[toMap]={...all[fromMap],...all[toMap]};
+				// Links let a page without a DOI (e.g. CNKI) find its Zotero item.
+				const fromLink=':'+from.slice(0,1750);
+				for(const [key,value] of Object.entries(all)){
+					if(!key.startsWith('paperloop:link:v2:')||!key.endsWith(fromLink))continue;
+					const target=key.slice(0,-fromLink.length)+':'+documentKey.slice(0,1750);
+					if(all[target]&&(all[target].itemKey!==value.itemKey||all[target].libraryID!==value.libraryID))throw new Error('新地址已关联另一条文献，未迁移草稿或图片');
+					if(!all[target])copy[target]=value;
+				}
+				await current(tab,documentKey);
+				if(Object.keys(copy).length)await browser.storage.local.set(copy);
+				const database=await db();
+				try{await new Promise((resolve,reject)=>{
+					const tx=database.transaction(storeNames,'readwrite');
+					tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('图片迁移事务已取消'));
+					for(const storeName of storeNames)for(const record of rows[storeName])tx.objectStore(storeName).put({...record,documentKey});
+				});}finally{database.close();}
+				return {ok:true,moved:storeNames.reduce((sum,name)=>sum+rows[name].length,0)};
+			});queueWrites=operation;return operation;
+		}
+		if(action==='backups')return (await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey&&r.targetID===payload.targetID).sort((a,b)=>b.updatedAt-a.updatedAt).map(({html,baseHTML,imageNames,imageMetadata,removedImages,fingerprint,...r})=>({...r,preview:html.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').replace(/^\s*PaperLoop 思考\s*/,'').trim().slice(0,100)}));
 		if(action==='backup'){
 			if(typeof payload.html!=='string'||payload.html.length>1024*1024)throw new Error('笔记过大，无法创建本机备份');
 			const operation=queueWrites.catch(()=>{}).then(async()=>{
-				const images=(await storage('getAll')).filter(r=>r.documentKey===documentKey&&!(payload.removedImages||[]).includes(r.id));
+				const pending=(await storage('getAll')).filter(r=>r.documentKey===documentKey&&!(payload.removedImages||[]).includes(r.id)).sort(imageOrder);
+				const {images,mappings}=await backupImages(payload,tab,documentKey,pending);
 				const imageIDs=images.map(r=>r.id),history=(await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey&&r.targetID===payload.targetID).sort((a,b)=>a.updatedAt-b.updatedAt),last=history.at(-1);
-				const fields={html:payload.html,baseHTML:payload.baseHTML||'',removedImages:payload.removedImages||[],imageNames:payload.imageNames||{},imageIDs};
-				const fingerprint=JSON.stringify({html:fields.html,removedImages:fields.removedImages,imageNames:fields.imageNames,imageIDs});
+				const fields={html:payload.html,baseHTML:payload.baseHTML||'',removedImages:payload.removedImages||[],imageNames:payload.imageNames||{},imageIDs,imageMetadata:images.map(imageMetadata),imageMappings:mappings};
+				const fingerprint=JSON.stringify({html:fields.html,removedImages:fields.removedImages,imageNames:fields.imageNames,imageIDs,imageMetadata:fields.imageMetadata});
 				if(last?.fingerprint===fingerprint){if((payload.force||payload.dirty===false)&&!last.pinned)await storage('put',{...last,pinned:true},'history');return {ok:true,id:last.id};}
 				if(emptyPlaceholder(payload.html)&&!imageIDs.length&&!history.length)return {ok:true,empty:true};
 				for(const image of images)await storage('put',image,'recoveryMedia');
@@ -174,23 +261,63 @@ Zotero.PaperLoopImages = new function () {
 				await storage('put',row,'history');
 				if(!replace)history.push(row);else history[history.length-1]=row;
 				while(history.length>20){const index=history.findIndex(r=>r.id!==payload.protectID);await storage('delete',history.splice(index<0?0:index,1)[0].id,'history');}
-				const retained=(await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey),used=new Set(retained.flatMap(r=>r.imageIDs||[]));
-				for(const image of await storage('getAll',undefined,'recoveryMedia'))if(image.documentKey===documentKey&&!used.has(image.id))await storage('delete',image.id,'recoveryMedia');
+				const retained=(await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey),used=new Set(retained.flatMap(r=>r.imageIDs||[])),legacyKeys=new Set(retained.flatMap(r=>savedImageMetadata(r.html).map(i=>i.imageKey)));
+				const map=(await browser.storage.local.get('paperloop:image-map:v1:'+documentKey))['paperloop:image-map:v1:'+documentKey]||{};
+				for(const image of await storage('getAll',undefined,'recoveryMedia'))if(image.documentKey===documentKey&&!used.has(image.id)&&!legacyKeys.has(image.nativeIdentity?.imageKey||map[image.id]?.imageKey)&&!(image.nativeIdentities||[]).some(m=>legacyKeys.has(m.imageKey)))await storage('delete',image.id,'recoveryMedia');
 				return {ok:true,id:row.id};
 			});queueWrites=operation;return operation;
 		}
 		if(action==='restore-backup'){
-			const row=await storage('get',payload.id,'history');
+			let row=await storage('get',payload.id,'history');
 			if(!row||row.documentKey!==documentKey||row.targetID!==payload.targetID)throw new Error('未找到当前笔记的备份');
-			const map=(await browser.storage.local.get('paperloop:image-map:v1:'+documentKey))['paperloop:image-map:v1:'+documentKey]||{};
-			let remote;try{remote=await Zotero.Connector_Browser.paperLoopGetDocumentState(payload,tab,0);}catch(_){}
-			const savedKeys=[],restored=[];
+			const mapKey='paperloop:image-map:v1:'+documentKey,map=(await browser.storage.local.get(mapKey))[mapKey]||{};
+			let remote,remoteError;try{remote=await Zotero.Connector_Browser.paperLoopGetDocumentState(payload,tab,0);}catch(error){remoteError=error;}
+			const savedKeys=[],savedImages=[],restored=[],replayedImages=[];
 			const operation=queueWrites.catch(()=>{}).then(async()=>{
 				const pending=await storage('getAll');
-				const needed=[];for(const id of row.imageIDs||[]){const mapped=map[id];if(mapped&&mapped.libraryID===remote?.libraryID&&mapped.itemKey===remote?.itemKey){savedKeys.push(mapped.imageKey);continue;}if(pending.some(r=>r.id===id))continue;const image=await storage('get',id,'recoveryMedia');if(!image)throw new Error('备份中的图片数据不完整，原笔记未被替换');needed.push(image);}
-				if(pending.length+needed.length>12)throw new Error('待保存图片超过 12 张，请先保存当前图片后恢复');
+				if(savedImageMetadata(row.html).some(meta=>!Object.values(row.imageMappings||{}).some(m=>m.imageKey===meta.imageKey))){
+					const legacy=await backupImages({...payload,html:row.html},tab,documentKey,[]);
+					for(const image of legacy.images)await storage('put',image,'recoveryMedia');
+					row={...row,imageIDs:[...new Set([...(row.imageIDs||[]),...legacy.images.map(i=>i.id)])],imageMetadata:[...(row.imageMetadata||[]),...legacy.images.map(imageMetadata)],imageMappings:{...row.imageMappings,...legacy.mappings}};
+				}
+				const records=[];
+				for(const id of row.imageIDs||[]){
+					const media=await storage('get',id,'recoveryMedia'),previous=row.imageMappings?.[id],current=map[id];
+					const mapped=current?.libraryID===remote?.libraryID&&current?.itemKey===remote?.itemKey?current:previous||current;
+					const meta=(row.imageMetadata||[]).find(image=>image.id===id)||media||mapped||{id};
+					records.push({id,media,mapped,previous,meta:{...imageMetadata(meta),id,caption:Object.hasOwn(row.imageNames||{},id)?row.imageNames[id]:meta.caption||''}});
+				}
+				// Older backups used IndexedDB's UUID ordering. Recover capture order
+				// from the retained bytes as well as from new metadata snapshots.
+				records.sort((a,b)=>imageOrder(a.meta,b.meta));
+				const needed=[],invalid=[];
+				for(const {id,media,mapped,previous,meta} of records){
+					let validMapping=false;
+					if(mapped&&remoteError)throw remoteError;
+					if(mapped&&mapped.libraryID===remote?.libraryID&&mapped.itemKey===remote?.itemKey&&/^[A-Z0-9]{8}$/.test(mapped.imageKey)){
+						try{await bridge({action:'image',libraryID:remote.libraryID,itemKey:remote.itemKey,imageKey:mapped.imageKey});validMapping=true;}catch(error){if(error.status!==404)throw error;}
+					}
+					if(validMapping){savedKeys.push(mapped.imageKey);savedImages.push({...meta,imageKey:mapped.imageKey});if(previous&&previous.imageKey!==mapped.imageKey)replayedImages.push({id:mapped.imageKey,imageKey:previous.imageKey});continue;}
+					if(mapped){invalid.push({id,mapped});replayedImages.push({id,imageKey:mapped.imageKey});}
+					if(previous&&previous.imageKey!==mapped?.imageKey)replayedImages.push({id,imageKey:previous.imageKey});
+					const existing=pending.find(image=>image.id===id);
+					if(!existing&&!media)throw new Error('备份中的图片数据不完整，原笔记未被替换');
+					needed.push({...existing||media,...meta,error:undefined});
+				}
+				const wanted=new Set(row.imageIDs||[]),later=pending.filter(image=>image.documentKey===documentKey&&!wanted.has(image.id));
+				if(pending.length-later.length+needed.filter(image=>!pending.some(r=>r.id===image.id)).length>12)throw new Error('待保存图片超过 12 张，请先保存当前图片后恢复');
+				if(later.length){
+					// Preserve newer pending images as a separate recovery version before
+					// excluding them from the restored version's next save.
+					for(const image of later)await storage('put',image,'recoveryMedia');
+					await storage('put',{id:crypto.randomUUID(),documentKey,targetID:payload.targetID,html:payload.currentHTML||remote?.noteHTML||'',baseHTML:remote?.noteHTML||'',imageIDs:later.map(i=>i.id),imageMetadata:later.map(imageMetadata),imageNames:{},removedImages:[],pinned:true,createdAt:Date.now(),updatedAt:Date.now()},'history');
+					const history=(await storage('getAll',undefined,'history')).filter(r=>r.documentKey===documentKey&&r.targetID===payload.targetID).sort((a,b)=>a.updatedAt-b.updatedAt);
+					while(history.length>20){const index=history.findIndex(r=>r.id!==row.id);await storage('delete',history.splice(index,1)[0].id,'history');}
+				}
+				if(invalid.length){const latest=(await browser.storage.local.get(mapKey))[mapKey]||{};for(const {id,mapped} of invalid)if(latest[id]?.imageKey===mapped.imageKey&&latest[id]?.itemKey===mapped.itemKey&&latest[id]?.libraryID===mapped.libraryID)delete latest[id];await browser.storage.local.set({[mapKey]:latest});}
 				for(const image of needed){await storage('put',image);restored.push(image.id);}
-			});queueWrites=operation;await operation;return {...row,savedKeys,restored};
+				for(const image of later)await storage('delete',image.id);
+			});queueWrites=operation;await operation;return {...row,savedKeys,savedImages,restored,replayedImages};
 		}
 		// Snapshot the staged set at the start of this save. Later captures remain
 		// pending for the next click, rather than silently joining an in-flight save.
@@ -248,7 +375,7 @@ Zotero.PaperLoopImages = new function () {
 			const hadNote=!!state.noteHTML;
 			// Keep the existing collection/PDF workflow, but never send rich content
 			// through the legacy full-text overwrite endpoint.
-			await Zotero.Connector_Browser.paperLoopSaveThought({...payload,thought:'',noteOnly:true},tab,0);
+			await Zotero.Connector_Browser.paperLoopSaveThought({...payload,thought:'',noteOnly:true,deferSnapshot:true},tab,0);
 			tab=await current(tab,documentKey);
 			state=await Zotero.Connector_Browser.paperLoopGetDocumentState(payload,tab,0);
 			if(!hadNote&&payload.baseHTML===''){
@@ -257,7 +384,7 @@ Zotero.PaperLoopImages = new function () {
 			}
 		}
 		if(action==='save' && state.status!=='existing'){
-			await Zotero.Connector_Browser.paperLoopSaveThought({...payload,thought:''},tab,0);
+			await Zotero.Connector_Browser.paperLoopSaveThought({...payload,thought:'',deferSnapshot:true},tab,0);
 			tab=await current(tab,documentKey);
 			state=await Zotero.Connector_Browser.paperLoopGetDocumentState(payload,tab,0);
 			if(!emptyPlaceholder(state.noteHTML)){const error=new Error('文献已有笔记，请先载入现有笔记再保存');error.status=409;throw error;}
@@ -265,7 +392,8 @@ Zotero.PaperLoopImages = new function () {
 		}
 		if(state.status!=='existing')throw new Error('请先收藏当前文献');
 		let result=await bridge({action,libraryID:state.libraryID,itemKey:state.itemKey,noteHTML:payload.noteHTML,baseHTML:payload.baseHTML,imageKey:payload.imageKey});
-		if(action!=='save'||!payload.includePendingImages)return result;
+		if(action!=='save')return result;
+		if(!payload.includePendingImages){const snapshot=await Zotero.Connector_Browser.paperLoopSupplementSnapshot(tab,{libraryID:state.libraryID,itemKey:state.itemKey});return {...result,snapshot};}
 		// Write text before appending images, so the editor's older HTML can never
 		// overwrite images added during this same operation. A failed image stays local.
 		const images={ok:true,saved:0,failed:[],total:staged.length};
@@ -278,20 +406,24 @@ Zotero.PaperLoopImages = new function () {
 		images.ok=!images.failed.length;
 		if(staged.length)await notify(tab,images.ok?'图文笔记已保存到 Zotero':`文字已保存；${images.failed.length} 张图片未保存，可重试`,
 			images.ok?'ready':'error',{documentKey,batch:{...images,done:images.total,finished:true}});
-		return {...result,ok:images.ok,textSaved:true,images};
+		const snapshot=await Zotero.Connector_Browser.paperLoopSupplementSnapshot(tab,{libraryID:state.libraryID,itemKey:state.itemKey});
+		return {...result,ok:images.ok,textSaved:true,images,snapshot};
 	}
 	this.request=(payload={},tab,frameId)=>{
 		if(!tab||frameId!==0)return Promise.reject(new Error('请在文献主页面操作'));
 		const key=keyFor(tab.url);
 		if(payload.documentKey&&payload.documentKey!==key)return Promise.reject(new Error('页面已切换，请等待侧栏更新'));
-		if(!['save','save-images','save-image','discard-images','discard-image'].includes(payload.action))return request(payload,tab,frameId);
+		if(!['save','save-images','save-image','discard-images','discard-image','restore-backup','rekey'].includes(payload.action))return request(payload,tab,frameId);
 		// Serialize mutations across tabs showing the same document, and coalesce
 		// identical retries. Different drafts still pass through optimistic locking.
 		const signature=key+':'+JSON.stringify(payload);
 		if(identicalRequests.has(signature))return identicalRequests.get(signature);
+		const from=payload.action==='rekey'?String(payload.fromKey||''):null;
+		if(from&&(mutations.has(from)||mutations.has(key)))return Promise.reject(new Error('上一笔图文操作仍在进行，完成后再更新地址；原内容保留'));
 		const operation=(mutations.get(key)||Promise.resolve()).catch(()=>{}).then(async()=>request(payload,await current(tab,key),frameId));
 		mutations.set(key,operation);identicalRequests.set(signature,operation);
-		const cleanup=()=>{if(mutations.get(key)===operation)mutations.delete(key);if(identicalRequests.get(signature)===operation)identicalRequests.delete(signature);};
+		if(from)mutations.set(from,operation);
+		const cleanup=()=>{if(mutations.get(key)===operation)mutations.delete(key);if(from&&mutations.get(from)===operation)mutations.delete(from);if(identicalRequests.get(signature)===operation)identicalRequests.delete(signature);};
 		operation.then(cleanup,cleanup);
 		return operation;
 	};

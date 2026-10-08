@@ -29,6 +29,9 @@ const SITE_ACCESS_LIMIT_TRANSLATORS = new Set([
 	"57a00950-f0d1-4b41-b6ba-44ff0fc30289" // GoogleScholar
 ]);
 
+const PAPERLOOP_CONTENT_DETECTION_TIMEOUT = 20000;
+const PAPERLOOP_SNAPSHOT_CAPTURE_TIMEOUT = 20000;
+
 function determineAttachmentIcon(attachment) {
 	if(attachment.linkMode === "linked_url") {
 		return Zotero.ItemTypes.getImageSrc("attachment-web-link");
@@ -93,12 +96,115 @@ let PageSaving = {
 	 * @returns {Promise<void|*>}
 	 */
 	async onPageLoad(force) {
+		const url = document.location.href;
+		const current = this._paperLoopDetectionToken;
+		if (this._paperLoopDetectionRefresh?.url === url
+			&& this._paperLoopDetectionRefresh.token === current) return this._paperLoopDetectionRefresh.promise;
+		if (this._paperLoopDetectionJob && this._paperLoopDetectionURL === url) {
+			const copy = this._paperLoopDetectionCopy;
+			if (force && copy?.url === url && copy.signature !== this._paperLoopDocumentSignature()) {
+				// The offscreen copy predates this request. Coalesce changed-page
+				// requests into one fresh detection after the old job has finished.
+				const active = this._paperLoopDetectionJob;
+				const refresh = {url, token: current};
+				this._paperLoopDetectionRefresh = refresh;
+				refresh.promise = (async () => {
+					try {
+						await active;
+						if (this._paperLoopDetectionRefresh === refresh) this._paperLoopDetectionRefresh = null;
+						if (document.location.href === url && this._paperLoopDetectionToken === refresh.token) {
+							return this.onPageLoad(true);
+						}
+					}
+					finally {
+						if (this._paperLoopDetectionRefresh === refresh) this._paperLoopDetectionRefresh = null;
+					}
+				})();
+				return refresh.promise;
+			}
+			return this._paperLoopDetectionJob;
+		}
+		if (current) current.active = false;
+		const token = {url, active: true, generation: (current?.generation || 0) + 1};
+		this._paperLoopDetectionToken = token;
+		this._paperLoopDetectionRefresh = null;
+		this._paperLoopDetectionURL = url;
+		this._paperLoopDetectionCopy = null;
+		const job = this._paperLoopWithDeadline(this._detectPageTranslators(force, token),
+			PAPERLOOP_CONTENT_DETECTION_TIMEOUT, '文献识别超时，请重试').catch(error => {
+			if (!this._paperLoopIsCurrentDetection(token)) return;
+			this.translators = [];
+			this._paperLoopDetection = {status: 'timeout', url};
+			token.active = false;
+			Zotero.logError(error);
+		});
+		this._paperLoopDetectionJob = job;
+		try { return await job; }
+		finally {
+			token.active = false;
+			if (this._paperLoopDetectionJob === job) this._paperLoopDetectionJob = null;
+		}
+	},
+
+	_paperLoopIsCurrentDetection(token) {
+		return token.active && this._paperLoopDetectionToken === token && document.location.href === token.url;
+	},
+
+	async _paperLoopWithDeadline(operation, milliseconds, message) {
+		let timer;
+		try {
+			return await Promise.race([operation, new Promise((_, reject) => {
+				timer = setTimeout(() => reject(new Error(message)), milliseconds);
+			})]);
+		}
+		finally { clearTimeout(timer); }
+	},
+
+	_paperLoopDocumentSignature() {
+		return document.documentElement?.outerHTML || JSON.stringify([
+			document.location.href, document.title,
+			...['#paramdbcode', '#paramdbname', '#paramfilename'].map(selector =>
+				document.querySelector(selector)?.getAttribute('value') || '')
+		]);
+	},
+
+	_paperLoopPageState() {
+		const url = document.location.href;
+		const cnki = /^https?:\/\/(?:[a-z0-9-]+\.)*cnki\.net\//i.test(url);
+		const article = cnki && /\/kcms2?\/(?:article\/abstract|detail\/detail\.aspx)/i.test(url);
+		const metadataReady = !!document.querySelector('#paramdbcode')?.getAttribute('value');
+		const verification = cnki && (/\/verify(?:\/|[?#]|$)/i.test(url)
+			|| (!metadataReady && /^(?:请(?:完成|进行))?(?:安全验证|访问验证|验证码)(?:\s*[-–—|｜]\s*(?:中国知网|知网|CNKI))?$/i.test((document.title || '').trim())));
+		return {url, article, verification, ready: document.readyState, metadataReady};
+	},
+
+	async _paperLoopWaitForMetadata(token) {
+		const initial = this._paperLoopPageState();
+		if (!initial.article || initial.verification || initial.metadataReady) return;
+		// CNKI fills hidden fields asynchronously. Wait before the offscreen
+		// document copy is made, without changing the supplied Translator.
+		const deadline = Date.now() + 10000;
+		do {
+			await Zotero.Promise.delay(200);
+			if (token && !this._paperLoopIsCurrentDetection(token)) return;
+			const state = this._paperLoopPageState();
+			if (state.url !== initial.url || state.verification || state.metadataReady) return;
+		} while (Date.now() < deadline);
+	},
+
+	async _detectPageTranslators(force, token) {
+		// Keep direct callers on the same bounded, generation-aware path.
+		if (!token) return this.onPageLoad(force);
 		if (document.location == "about:blank") return;
+		if (!this._paperLoopIsCurrentDetection(token)) return;
+		const detectionURL = token.url;
+		this._paperLoopDetection = {status: 'loading', url: detectionURL};
 		// Article routes can display the notebook while slow/offscreen metadata
 		// detection is still starting. Search pages keep the existing exclusion.
 		if (globalThis.PaperLoopAutoDisplayPolicy?.classifyURL(window.location.href)==='literature') {
-			try { await this._paperLoopAutoDisplay(this.translators); } catch(error) { Zotero.logError(error); }
+			try { await this._paperLoopAutoDisplay(this.translators, token); } catch(error) { Zotero.logError(error); }
 		}
+		if (!this._paperLoopIsCurrentDetection(token)) return;
 
 		// Reset session on every init so a new save is triggered after JS-based changes
 		// (monitorDOMChanges/ZoteroItemUpdated)
@@ -111,18 +217,71 @@ let PageSaving = {
 					this.translators = [];
 				}
 				else {
+					this._paperLoopDetection = {status: 'ready', url: detectionURL};
 					return;
 				}
 			}
 
+			await this._paperLoopWaitForMetadata(token);
+			if (!this._paperLoopIsCurrentDetection(token)) return;
+			if (this._paperLoopPageState().verification) {
+				this.translators = [];
+				this._paperLoopDetection = {status: 'verification', url: detectionURL};
+				return;
+			}
+			this._paperLoopDetectionCopy = {url: detectionURL, signature: this._paperLoopDocumentSignature()};
 			let translate = await this._initTranslate();
+			if (!this._paperLoopIsCurrentDetection(token)) return;
 			let translators = await Zotero.TranslateWeb.detect({ translate });
+			if (!this._paperLoopIsCurrentDetection(token)) return;
 			this.translators = translators;
+			const state = this._paperLoopPageState();
+			this._paperLoopDetection = {status: translators.length ? 'ready'
+				: state.article && !state.metadataReady ? 'missing-metadata' : 'unrecognized', url: detectionURL};
 			Zotero.Connector_Browser.onTranslators(translators, instanceID, document.contentType);
-			await this._paperLoopAutoDisplay(translators);
+			await this._paperLoopAutoDisplay(translators, token);
 		} catch (e) {
+			if (!this._paperLoopIsCurrentDetection(token)) return;
+			this._paperLoopDetection = {status: 'error', url: detectionURL};
 			Zotero.logError(e);
 		}
+	},
+
+	async paperLoopDetect() {
+		await this.onPageLoad(true);
+		return {...this._paperLoopDetection, ...this._paperLoopPageState(), count: this.translators.length};
+	},
+
+	async paperLoopSaveSnapshot(data) {
+		const state = this._paperLoopPageState();
+		if (state.url !== data.url) return {status: 'skipped', reason: 'PAGE_CHANGED'};
+		if (!state.article || state.verification || state.ready !== 'complete') {
+			throw new Error('文献页面尚未加载完成，请回到详情页后重试快照');
+		}
+		if (!await Zotero.Connector.getPref('automaticSnapshots')) {
+			return {status: 'skipped', reason: 'AUTOMATIC_SNAPSHOTS_DISABLED'};
+		}
+		const remote = await Zotero.Connector.callMethod('paperloop/state', {
+			libraryID: data.libraryID, itemKey: data.itemKey
+		});
+		if (remote.status !== 'existing' || remote.itemKey !== data.itemKey) throw new Error('快照目标条目已失效');
+		if (remote.hasSnapshot) return {status: 'present', attachmentKey: remote.snapshotAttachmentKey};
+		if (remote.filesEditable === false) return {status: 'skipped', reason: 'FILES_NOT_EDITABLE'};
+		if (remote.hasSnapshot === undefined) throw new Error('请安装 PaperLoop for Zotero 0.5.6 后补存快照');
+		// Bound only the capture stage: an abandoned SingleFile promise may finish,
+		// but it no longer has a continuation capable of uploading its result.
+		const content = await this._paperLoopWithDeadline(Zotero.SingleFile.retrievePageData(),
+			PAPERLOOP_SNAPSHOT_CAPTURE_TIMEOUT, '快照采集超时，请重试补存快照');
+		const snapshotDoc = new DOMParser().parseFromString(content, 'text/html');
+		for (const node of snapshotDoc.querySelectorAll('[data-paperloop-sidebar-host]')) node.remove();
+		const snapshotContent = '<!DOCTYPE html>' + snapshotDoc.documentElement.outerHTML;
+		if (document.location.href !== state.url) throw new Error('网页已切换，请返回原文后补存快照');
+		const result = await Zotero.Connector.saveSingleFile({
+			method: 'paperloop/add-snapshot', timeout: 120000,
+			headers: {'Content-Type': 'application/json'}
+		}, {libraryID: data.libraryID, itemKey: data.itemKey, url: state.url,
+			title: 'Snapshot', snapshotContent});
+		return {status: result.created ? 'saved' : 'present', attachmentKey: result.attachmentKey};
 	},
 
 	/**
@@ -131,7 +290,8 @@ let PageSaving = {
 	 * waking; detection itself already runs in this document, so rendering here
 	 * removes that unnecessary return trip.
 	 */
-	async _paperLoopAutoDisplay(translators) {
+	async _paperLoopAutoDisplay(translators, token) {
+		if (token && !this._paperLoopIsCurrentDetection(token)) return;
 		if (window.top && window.top !== window) return;
 		if (!Zotero.PaperLoopSidebar || !globalThis.PaperLoopAutoDisplayPolicy) return;
 		const key = 'paperloop:autoDisplayCategories:v2';
@@ -144,6 +304,7 @@ let PageSaving = {
 			Zotero.logError(error);
 			categories = PaperLoopAutoDisplayPolicy.normalizeCategories();
 		}
+		if (token && !this._paperLoopIsCurrentDetection(token)) return;
 
 		const pageCategory = PaperLoopAutoDisplayPolicy.classifyTabInfo({
 			translators,

@@ -147,7 +147,16 @@ let MessagingGeneric = class {
 		if (!options.sendMessage || !options.addMessageListener) {
 			throw new Error('MessagingGeneric: mandatory reinit() options missing');
 		}
+		// Replies to requests sent over the old connection will never arrive.
+		// Fail them now so callers (e.g. an in-progress translation) do not wait forever.
+		const pending = this._responseListeners;
 		this._responseListeners = {};
+		for (const id in pending) {
+			pending[id](['error', JSON.stringify({
+				name: 'Error',
+				message: 'Messaging connection was reset before a response arrived'
+			})]);
+		}
 		this._sendMessage = options.sendMessage;
 		this._addMessageListener = options.addMessageListener;
 		this._initMessageListener();
@@ -192,10 +201,12 @@ let MessagingGeneric = class {
 			 response = await this._sendMessage(message, payload)
 		}
 		else {
-			response = await new Promise((resolve) => {
+			response = await new Promise((resolve, reject) => {
 				const id = Zotero.Utilities.randomString();
 				this._responseListeners[id] = resolve;
-				this._sendMessage(message, payload, id);
+				const fail = error => { delete this._responseListeners[id]; reject(error); };
+				try { Promise.resolve(this._sendMessage(message, payload, id)).catch(fail); }
+				catch (error) { fail(error); }
 			});
 		}
 		if (Array.isArray(response) && response[0] == 'error') {

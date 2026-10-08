@@ -54,11 +54,11 @@ vm.runInContext(bootstrap, context, {filename: 'bootstrap.js'});
 
 	await context.startup({
 		id: 'paperloop-doi-bridge@paperloop.app',
-		version: '0.5.5',
+		version: '0.5.6',
 		rootURI: 'test://paperloop/'
 	});
 	assert.equal(calls.some(call => call[0] === 'error'), false);
-	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length, 9);
+	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length, 10);
 	assert.equal(
 		Object.values(context.Zotero.Server.Endpoints)
 			.every(Endpoint => Endpoint.prototype.init.length === 1),
@@ -79,8 +79,8 @@ vm.runInContext(bootstrap, context, {filename: 'bootstrap.js'});
 		['paperloop-doi-bridge@paperloop.app']
 	);
 	else assert.equal(calls.filter(call=>call[0]==='reader-public-unregister').length,1);
-	await context.startup({id:'paperloop-doi-bridge@paperloop.app',version:'0.5.5',rootURI:'test://paperloop/'});
-	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length,9);
+	await context.startup({id:'paperloop-doi-bridge@paperloop.app',version:'0.5.6',rootURI:'test://paperloop/'});
+	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length,10);
 	context.shutdown();
 	assert.equal(Object.keys(context.Zotero.Server.Endpoints).length,0);
 	assert.equal(calls.some(call=>call[0]==='error'),false);

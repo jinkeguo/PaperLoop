@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+ <title>PaperLoop 柴犬</title>
+ <style>
+  .tail{transform-origin:90px 101px;animation:wag 1.8s ease-in-out infinite}.eyes{transform-origin:64px 59px;animation:blink 6.3s infinite}.body{transform-origin:64px 116px;animation:breathe 4.4s ease-in-out infinite}
+  @keyframes wag{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(12deg)}}@keyframes blink{0%,51%,55%,100%{transform:scaleY(1)}53%{transform:scaleY(.08)}}@keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.02)}}@media(prefers-reduced-motion:reduce){.tail,.eyes,.body{animation:none}}
+ </style>
+ <ellipse cx="65" cy="118" rx="37" ry="5" fill="#5a4231" opacity=".12"/>
+ <g class="body" stroke="#694936" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <path class="tail" d="M89 109Q118 111 117 91Q117 76 105 77Q93 77 98 89Q101 93 106 88Q107 101 88 99" fill="#dfa064"/>
+  <path d="M42 77Q31 95 38 112Q48 120 64 114Q79 120 92 112Q95 95 84 77" fill="#e4a264"/>
+  <path d="M51 80Q65 75 78 82Q88 103 76 114H50Q40 102 51 80Z" fill="#fff2d9" stroke="none"/>
+  <ellipse cx="50" cy="113" rx="13" ry="6" fill="#fff2d9"/><ellipse cx="79" cy="113" rx="13" ry="6" fill="#fff2d9"/>
+  <path d="M46 113v3m6-3v3m23-3v3m6-3v3" stroke="#c9af92" stroke-width="1.3"/>
+  <path d="M43 80Q38 92 45 102Q52 107 56 101L53 88M84 80Q90 93 81 104Q75 107 73 101L76 88" fill="#e4a264"/>
+  <path d="M24 43Q21 16 29 12Q34 9 47 28Q63 23 82 28Q96 10 102 13Q109 19 104 44Q116 64 103 79Q87 93 64 90Q39 92 24 79Q10 64 24 43Z" fill="#e4a264"/>
+  <path d="M29 22L34 40L42 32Z" fill="#a86a4f" stroke="none"/><path d="M99 23L87 32L98 40Z" fill="#a86a4f" stroke="none"/>
+  <path d="M20 63Q31 63 40 71Q46 59 56 66Q64 72 72 66Q84 59 90 71Q101 63 109 63Q112 82 89 87Q64 96 39 86Q20 83 20 63Z" fill="#fff2d9" stroke="none"/>
+  <path d="M38 46q7-6 11 0m29 0q7-6 11 0" stroke="#fff2d9" stroke-width="5" fill="none"/>
+  <g class="eyes" stroke="none"><ellipse cx="44" cy="58" rx="5.6" ry="7.2" fill="#44312b"/><ellipse cx="84" cy="58" rx="5.6" ry="7.2" fill="#44312b"/><circle cx="46" cy="55.5" r="2.2" fill="#fff"/><circle cx="86" cy="55.5" r="2.2" fill="#fff"/></g>
+  <ellipse cx="31" cy="70" rx="7" ry="4" fill="#e89a83" stroke="none" opacity=".6"/><ellipse cx="97" cy="70" rx="7" ry="4" fill="#e89a83" stroke="none" opacity=".6"/>
+  <path d="M59 68Q64 65 69 68Q68 73 64 74Q60 73 59 68Z" fill="#44312b" stroke="none"/>
+  <path d="M57 76Q64 83 71 76Q71 88 64 88Q57 88 57 76Z" fill="#ecaaa5" stroke-width="1.5"/><path d="M64 81v4" stroke="#cc8285" stroke-width="1.2"/>
+  <path d="M49 89Q63 94 79 89L71 103L63 97L55 101Z" fill="#699388" stroke-width="1.8"/>
+ </g>
+</svg>

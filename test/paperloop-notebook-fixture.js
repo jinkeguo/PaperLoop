@@ -8,7 +8,7 @@ let count=10, note=null, linked=true, attachments=[], creations=0;
 const parent={id:1,key:'PARENT01',libraryID:1,getField:()=>document.title,isRegularItem:()=>true};
 const target={targetID:'C1',name:'evtol 低空',path:'我的文库 / evtol 低空',libraryID:1};
 window.browser={
- storage:{local:{async get(keys){keys=typeof keys==='string'?[keys]:keys;return Object.fromEntries(keys.filter(k=>k in memory).map(k=>[k,memory[k]]));},async set(value){Object.assign(memory,structuredClone(value));},async remove(key){delete memory[key];}}},
+ storage:{local:{async get(keys){keys=keys===null?Object.keys(memory):typeof keys==='string'?[keys]:keys;return Object.fromEntries(keys.filter(k=>k in memory).map(k=>[k,memory[k]]));},async set(value){Object.assign(memory,structuredClone(value));},async remove(key){delete memory[key];}}},
  runtime:{getURL:path=>location.origin+'/'+path,onMessage:{addListener:fn=>listeners.push(fn)},async sendMessage([method,args]){try{return await fixture.bridgeAPI[method.split('.')[1]](...args);}catch(e){return ['error',JSON.stringify({message:e.message,status:e.status})];}}},
  tabs:{async get(){return fixture.tab;},async sendMessage(id,data){if(data.type==='paperloop:image-context')return fixture.contexts?.get(data.srcUrl)||fixture.imageContext;fixture.notices.push(data);for(const l of listeners)l(data);}},
  action:{async setBadgeText(){}}, i18n:{getUILanguage:()=> 'zh-CN'}
@@ -23,7 +23,8 @@ window.Zotero={getMainWindow:()=>window,logError:e=>fixture.notices.push({error:
  }},
  Connector_Browser:{async paperLoopGetCollections(){return {targets:[target],selectedTargetID:'C1'};},async paperLoopSetTarget(){return {target};},
  async paperLoopGetDocumentState(payload){if(fixture.requireTarget&&!payload?.targetID)throw new Error('请先选择要查询的 Zotero 文库或分类');return {status:linked?'existing':'missing',...await PaperLoopNotebook.snapshot(parent,note)};},
- async paperLoopSaveThought(){creations++;linked=true;await PaperLoopNotebook.noteFor(parent,true);return {ok:true};},
+ async paperLoopSaveThought(payload){fixture.lastThoughtPayload=payload;creations++;linked=true;await PaperLoopNotebook.noteFor(parent,true);return {ok:true};},
+ async paperLoopSupplementSnapshot(tab,identity){return fixture.beforeSnapshot?fixture.beforeSnapshot(tab,identity):{status:'skipped'};},
  getTabInfo:()=>({translators:[{itemType:'journalArticle'}]}),async paperLoopSetMinimized(){},async paperLoopSetPinned(){},async paperLoopSetAutoDisplayCategories(categories){return {categories};}},
  Connector:{async callMethod(_,data){if(fixture.failBridge || (data.action==='add-image'&&fixture.failCaption===data.caption))throw new Error('模拟断线');if(data.action==='add-image'&&fixture.beforeImage)await fixture.beforeImage(data);const [status,,body]=await new PaperLoopNotebook.Endpoint().init({data});if(status!==200){const e=new Error(JSON.parse(body).error);e.status=status;throw e;}return JSON.parse(body);}}
 };
@@ -234,6 +235,9 @@ fixture.flowTests=async()=>{
  });
  let stagedIds=[];
  await fixture.test('pending x is reversible and leaves bytes staged until main save',async()=>{
+  // Finish the preceding typing scenario first. Its 1.8 s autosave can otherwise
+  // consume this scenario's captures while IndexedDB is still staging the batch.
+  await ui.save();await fixture.until(()=>!ui.debugState().saving&&!ui.debugState().imagesBusy);
   await fixture.collect([40,41,42]);await fixture.until(()=>ui.debugState().pendingCount===3);stagedIds=(await pending()).map(r=>r.id);s().querySelector('.media-card[data-kind=pending] .media-delete').click();a(ui.debugState().pendingCount===2&&ui.debugState().dirty,'pending draft removal not tracked');a((await pending()).length===3,'x prematurely discarded bytes');s().querySelector('.flow-undo').click();a(ui.debugState().pendingCount===3,'undo did not restore pending image');
  });
  await fixture.test('pending images link continuously and resolve to native keys on unified save',async()=>{
@@ -338,4 +342,104 @@ fixture.designPreview=async()=>{
  const ui=Zotero.PaperLoopSidebar,s=()=>fixture.shadow;ui.close();await fixture.delay(40);delete memory['paperloop:notebookDraft:v1:'+location.href];
  const keys=attachments.slice(0,3).map(a=>a.key);note.setNote('<div data-schema-version="9"><h1>PaperLoop 思考</h1><div class="paperloop-entry pl-ref-'+keys[0]+'"><h3>研究主线</h3><p>航线评价应同时考虑任务、路径约束与能耗。</p></div><div class="paperloop-entry pl-ref-'+keys[1]+'"><h3>约束条件</h3><p>比较实验时，需要保持风场与禁飞区条件一致。</p></div><div class="paperloop-entry pl-ref-'+keys[2]+'"><h3>自己的想法</h3><p>先保存证据，再整理自己的判断。</p></div>'+keys.map((key,i)=>'<p><img data-attachment-key="'+key+'" alt="'+['任务与能耗','约束区域','候选路径'][i]+'"></p>').join('')+'</div>');
  memory['paperloop:appearance:v1']={font:'standard',theme:'cowcat',mode:'light',width:520,height:860,left:860,top:25};await fixture.uiSetup();ui.debugResetPosition();s().querySelector('.font').value='standard';s().querySelector('.font').dispatchEvent(new Event('change'));await ui.save();s().querySelector('.notebook-flow').scrollTop=0;await fixture.delay(200);
+};
+// Real browser DOM/IndexedDB regressions for draft initialization and recovery.
+fixture.recoveryRegressionTests=async()=>{
+ const start=fixture.tests.length,a=fixture.assert,ui=Zotero.PaperLoopSidebar,s=()=>fixture.shadow;
+ const draftKey='paperloop:notebookDraft:v1:'+location.href,mapKey='paperloop:image-map:v1:'+location.href;
+ const originalHTML=note.getNote(),originalAttachments=[...attachments],originalMap=structuredClone(memory[mapKey]||{});
+ const call=payload=>Zotero.PaperLoopImages.request({documentKey:location.href,targetID:'C1',...payload},fixture.tab,0);
+ const blank='<div data-schema-version="9"><h1>PaperLoop 思考</h1><p>恢复回归基线</p></div>';
+ const store=async(method,value,name='history')=>{const database=await new Promise((resolve,reject)=>{const req=indexedDB.open('paperloop-media-v1',2);req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});try{return await new Promise((resolve,reject)=>{const tx=database.transaction(name,method==='get'?'readonly':'readwrite'),req=tx.objectStore(name)[method](value);let result;req.onsuccess=()=>result=req.result;tx.oncomplete=()=>resolve(result);tx.onerror=()=>reject(tx.error);});}finally{database.close();}};
+ const reopen=async html=>{ui.close();await fixture.delay(250);if(html!==undefined)note.setNote(html);delete memory[draftKey];delete memory['paperloop:draft:v1:'+location.href];await fixture.uiSetup();};
+ const restoreUI=async id=>{
+  const original=Zotero.Connector_Browser.paperLoopNotebook;
+  Zotero.Connector_Browser.paperLoopNotebook=async payload=>{const result=await original(payload);return payload.action==='backups'?result.filter(row=>row.id===id):result;};
+  try{s().querySelector('.backup-open').click();await fixture.until(()=>s().querySelectorAll('.backup-row button').length===1);s().querySelector('.backup-row button').click();await fixture.until(()=>s().querySelector('.backups').hidden&&ui.debugState().status.includes('已恢复本机备份'));}
+  finally{Zotero.Connector_Browser.paperLoopNotebook=original;}
+ };
+ try{
+  await fixture.test('draft initialization locks first input and retains the first edit after loading',async()=>{
+   ui.close();await fixture.delay(250);const base=note.getNote();memory[draftKey]={html:base.replace('</div>','<p>旧本机草稿</p></div>'),baseHTML:base,dirty:true};
+   const get=browser.storage.local.get;let release,entered=false;
+   browser.storage.local.get=async keys=>{if(Array.isArray(keys)&&keys.includes(draftKey)){entered=true;await new Promise(r=>release=r);}return get(keys);};
+   const opening=fixture.uiSetup();try{await fixture.until(()=>entered);a(ui.debugState().initializing,'not in initializing state');a(s().querySelector('.editor').contentEditable==='false','first input is editable before draft load');a(s().querySelector('.flow-add').disabled&&s().querySelector('.save').disabled&&s().querySelector('.image-import').disabled,'draft mutation controls not locked');release();await opening;}
+   finally{browser.storage.local.get=get;release?.();}
+   a(!ui.debugState().initializing&&s().querySelector('.editor').contentEditable==='true','initialization did not unlock');
+   s().querySelector('.editor').insertAdjacentHTML('beforeend','<p>载入后的第一笔输入</p>');s().querySelector('.editor').dispatchEvent(new Event('input'));await fixture.delay(300);
+   a(ui.debugState().thought.includes('旧本机草稿')&&ui.debugState().thought.includes('载入后的第一笔输入'),'first edit overwritten');a(memory[draftKey].html.includes('载入后的第一笔输入'),'first edit not persisted');
+  });
+  await fixture.test('closing during draft initialization never writes the temporary empty editor',async()=>{
+   ui.close();await fixture.delay(250);const before=structuredClone(memory[draftKey]),get=browser.storage.local.get;let release,entered=false;
+   browser.storage.local.get=async keys=>{if(Array.isArray(keys)&&keys.includes(draftKey)){entered=true;await new Promise(r=>release=r);}return get(keys);};
+   const opening=fixture.uiSetup();try{await fixture.until(()=>entered);ui.close();release();await opening;await fixture.delay(250);a(JSON.stringify(memory[draftKey])===JSON.stringify(before),'closing erased the unread draft');}finally{browser.storage.local.get=get;release?.();}
+  });
+  await fixture.test('draft read failure preserves unknown draft and permits safe retry on reopen',async()=>{
+   const before=structuredClone(memory[draftKey]),get=browser.storage.local.get;
+   browser.storage.local.get=async keys=>{if(Array.isArray(keys)&&keys.includes(draftKey))throw new Error('模拟本机读取失败');return get(keys);};
+   try{await fixture.uiSetup();a(!ui.debugState().initializing,'failed initialization remained stuck');a(s().querySelector('.editor').contentEditable==='false'&&s().querySelector('.save').disabled,'unread draft permits destructive editing');await ui.debugRefreshZotero();a(ui.debugState().status.includes('原草稿未被覆盖'),'read failure protection is silent or overwritten by refresh');ui.close();await fixture.delay(250);a(JSON.stringify(memory[draftKey])===JSON.stringify(before),'failed read overwrote draft');}
+   finally{browser.storage.local.get=get;}
+   await fixture.uiSetup();a(s().querySelector('.editor').contentEditable==='true'&&ui.debugState().thought.includes('载入后的第一笔输入'),'reopen did not recover/unlock');
+  });
+  await fixture.test('native connection failure releases initialization when the local draft was read',async()=>{
+   ui.close();await fixture.delay(250);const get=Zotero.Connector_Browser.paperLoopGetCollections;
+   Zotero.Connector_Browser.paperLoopGetCollections=async()=>{throw new Error('模拟原生连接失败');};
+   try{await fixture.uiSetup();a(!ui.debugState().initializing&&s().querySelector('.editor').contentEditable==='true','native failure unnecessarily blocks local editing');}
+   finally{Zotero.Connector_Browser.paperLoopGetCollections=get;}
+  });
+  ui.close();await fixture.delay(250);note.setNote(blank);delete memory[draftKey];
+  const pending=await call({action:'pending'});if(pending.length)await call({action:'discard-images',ids:pending.map(r=>r.id)});
+  const ids=[],uris=[],random=crypto.randomUUID;let ordinal=0;
+  crypto.randomUUID=()=>['ffffffff-ffff-4fff-8fff-ffffffffffff','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'][ordinal++];
+  try{for(let i=0;i<2;i++){const uri=fixture.makeImage(i).uri;uris.push(uri);ids.push((await call({action:'import-image',dataURI:uri,name:['第一张恢复原图.png','第二张恢复原图.png'][i]})).id);await fixture.delay(35);}}
+  finally{crypto.randomUUID=random;}
+  const source='<div data-schema-version="9"><h1>PaperLoop 思考</h1>'+ids.map((id,i)=>'<div class="paperloop-entry pl-ref-'+id+'"><p>恢复图片对应段落 '+(i+1)+'</p></div>').join('')+'</div>';
+  const backup=await call({action:'backup',force:true,html:source,baseHTML:blank,imageNames:{}});
+  await call({action:'save',noteHTML:source,baseHTML:blank,includePendingImages:true});
+  const keys=ids.map(id=>memory[mapKey][id].imageKey),expected=keys.map((imageKey,i)=>({imageKey,caption:['第一张恢复原图','第二张恢复原图'][i],width:640,height:[360,427][i]}));
+  await fixture.test('backup restores original image names, dimensions and capture order after native save',async()=>{
+   const restored=await call({action:'restore-backup',id:backup.id});a(JSON.stringify(restored.savedKeys)===JSON.stringify(keys),'UUID order replaced capture order');a(restored.savedImages[0].caption==='第一张恢复原图'&&restored.savedImages[1].height===640,'backup metadata missing');
+   await reopen();await restoreUI(backup.id);
+   const images=[...s().querySelectorAll('.flow-image-store img')].map(img=>({imageKey:img.dataset.attachmentKey,caption:img.alt,width:img.width,height:img.height}));a(JSON.stringify(images)===JSON.stringify(expected),'restored UI changed names, size or order: '+JSON.stringify(images));
+   await ui.save();a(note.getNote().includes('第一张恢复原图')&&note.getNote().includes('第二张恢复原图'),'restored names lost on native resave');
+  });
+  await fixture.test('legacy backup without metadata recovers original capture order from retained bytes',async()=>{
+   const row=await store('get',backup.id);delete row.imageMetadata;row.imageIDs=[...ids].sort();await store('put',row);
+   const restored=await call({action:'restore-backup',id:backup.id});a(JSON.stringify(restored.savedKeys)===JSON.stringify(keys),'legacy UUID order not repaired');a(restored.savedImages[0].caption==='第一张恢复原图','legacy caption not repaired');
+  });
+  await fixture.test('deleted mapped attachment replays original bytes and remaps paragraph links on save',async()=>{
+   ui.close();await fixture.delay(250);const missing=attachments.find(r=>r.key===keys[0]);missing.deleted=true;
+   note.setNote('<div data-schema-version="9"><h1>PaperLoop 思考</h1><p><img data-attachment-key="'+keys[1]+'" alt="第二张恢复原图" width="640" height="427"></p></div>');
+   const row=await store('get',backup.id);row.html=source.replace('pl-ref-'+ids[0],'pl-ref-'+keys[0]).replace('</div></div>','</div><p><img data-attachment-key="'+keys[0]+'" alt="失效旧引用"></p></div>');await store('put',row);
+   await reopen();await restoreUI(backup.id);a(ui.debugState().pendingCount===1,'deleted map did not recover pending bytes');a(!memory[mapKey][ids[0]],'deleted mapping still resolves UUID to missing attachment');
+   a((await call({action:'pending-preview',id:ids[0]})).dataURI===uris[0],'recovered bytes changed');
+   await ui.save();const replacement=memory[mapKey][ids[0]].imageKey;a(replacement!==keys[0]&&note.getNote().includes('pl-ref-'+replacement),'paragraph link not rebound');a(!note.getNote().includes(keys[0])&&!(await call({action:'pending'})).length,'dead key survived or raw retry remained pending');
+  });
+  await fixture.test('missing mapped image file is rejected and recovered rather than trusting map identity',async()=>{
+   ui.close();await fixture.delay(250);const missing=attachments.find(r=>r.key===keys[1]);missing.fileExists=async()=>false;
+   note.setNote('<div data-schema-version="9"><h1>PaperLoop 思考</h1><p><img data-attachment-key="'+memory[mapKey][ids[0]].imageKey+'" alt="第一张恢复原图"></p></div>');
+   const restored=await call({action:'restore-backup',id:backup.id});a(restored.restored.includes(ids[1])&&!memory[mapKey][ids[1]],'missing file mapping accepted');a((await call({action:'pending-preview',id:ids[1]})).dataURI===uris[1],'missing-file backup bytes unavailable');await call({action:'discard-images',ids:[ids[1]]});
+  });
+  await fixture.test('rich note and pending images are durable before a held or failed snapshot',async()=>{
+   ui.close();await fixture.delay(250);const staged=await call({action:'import-image',dataURI:fixture.makeImage(2).uri,name:'先落盘再快照.png'});let release,entered=false;
+   fixture.beforeSnapshot=async(tab,identity)=>{a(identity.itemKey===parent.key&&identity.libraryID===1,'wrong snapshot identity');a(note.getNote().includes('快照等待期间图文已落盘')&&memory[mapKey][staged.id],'snapshot ran before rich/image commit');a(!(await call({action:'pending'})).length,'snapshot started before queue bytes removed');entered=true;await new Promise(r=>release=r);return {status:'failed',message:'图文已保存；测试快照失败'};};
+   const base=note.getNote(),operation=call({action:'save',baseHTML:base,noteHTML:base.replace('</div>','<p>快照等待期间图文已落盘</p></div>'),includePendingImages:true});
+   try{await fixture.until(()=>entered);a(fixture.lastThoughtPayload.deferSnapshot===true,'legacy thought call did not defer');release();const result=await operation;a(result.ok&&result.textSaved&&result.images.saved===1&&result.snapshot.status==='failed','snapshot failure confused note/image success');}
+   finally{release?.();delete fixture.beforeSnapshot;}
+  });
+  await fixture.test('rich save without pending images still supplements snapshot after commit',async()=>{
+   let calls=0;fixture.beforeSnapshot=async()=>{calls++;a(note.getNote().includes('纯文字也补快照'),'snapshot precedes rich text');return {status:'saved'};};
+   try{const base=note.getNote(),result=await call({action:'save',baseHTML:base,noteHTML:base.replace('</div>','<p>纯文字也补快照</p></div>'),includePendingImages:false});a(calls===1&&result.snapshot.status==='saved','no-pending snapshot omitted');}
+   finally{delete fixture.beforeSnapshot;}
+  });
+  await fixture.test('standalone image first creation supplements snapshot only after its native image commit',async()=>{
+   const staged=await call({action:'import-image',dataURI:fixture.makeImage(3).uri,name:'首次单图保存.png'});let calls=0;linked=false;
+   fixture.beforeSnapshot=async()=>{calls++;a(memory[mapKey][staged.id]&&note.getNote().includes('首次单图保存'),'single-image snapshot ran too early');return {status:'saved'};};
+   try{const result=await call({action:'save-image',id:staged.id,confirmCreate:true});a(calls===1&&result.imageKey&&result.snapshot.status==='saved'&&fixture.lastThoughtPayload.deferSnapshot,'single-image creation lost snapshot or fields');}
+   finally{linked=true;delete fixture.beforeSnapshot;}
+  });
+ }finally{
+  ui.close();await fixture.delay(250);delete fixture.beforeSnapshot;linked=true;note.setNote(originalHTML);attachments=originalAttachments;memory[mapKey]=originalMap;delete memory[draftKey];await fixture.uiSetup();
+ }
+ return fixture.tests.slice(start);
 };

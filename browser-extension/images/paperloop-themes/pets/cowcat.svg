@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+ <title>PaperLoop 奶牛猫</title>
+ <style>
+  .tail{transform-origin:89px 103px;animation:tail 4s ease-in-out infinite}.eyes{transform-origin:64px 59px;animation:blink 6.8s infinite}.body{transform-origin:64px 116px;animation:breathe 4s ease-in-out infinite}
+  @keyframes tail{0%,100%{transform:rotate(-5deg)}50%{transform:rotate(8deg)}}@keyframes blink{0%,43%,47%,100%{transform:scaleY(1)}45%{transform:scaleY(.08)}}@keyframes breathe{0%,100%{transform:scaleY(1)}50%{transform:scaleY(1.02)}}@media(prefers-reduced-motion:reduce){.tail,.eyes,.body{animation:none}}
+ </style>
+ <ellipse cx="65" cy="118" rx="37" ry="5" fill="#403341" opacity=".12"/>
+ <g class="body" stroke="#39323c" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+  <path class="tail" d="M89 108C112 111 120 90 110 83C104 79 101 86 106 90C112 96 104 104 89 99" fill="#45414b"/>
+  <path d="M42 78Q33 94 38 113Q47 119 63 114Q82 121 92 111Q95 92 84 77" fill="#fffaf3"/>
+  <path d="M72 83Q90 79 91 98Q86 106 77 100Z" fill="#45414b" stroke="none"/>
+  <ellipse cx="52" cy="112" rx="13" ry="6" fill="#fffaf3"/><ellipse cx="78" cy="112" rx="13" ry="6" fill="#fffaf3"/>
+  <path d="M47 112v3m6-3v3m20-3v3m6-3v3" stroke="#c3b7b6" stroke-width="1.3"/>
+  <path d="M42 79Q38 92 47 102Q53 105 55 100L52 88M84 79Q90 91 81 103Q74 105 73 99L76 88" fill="#fffaf3"/>
+  <path d="M25 42Q17 13 26 10Q33 8 48 27Q64 23 81 27Q99 8 105 12Q110 18 104 44Q116 68 99 81Q67 97 34 82Q13 70 25 42Z" fill="#fffaf3"/>
+  <path d="M25 42Q17 13 26 10Q33 8 48 27Q57 34 50 49Q36 60 22 53Z" fill="#45414b" stroke="none"/>
+  <path d="M28 19L34 38L42 30Z" fill="#eeb7bd" stroke="none"/><path d="M101 21L88 31L99 38Z" fill="#eeb7bd" stroke="none"/>
+  <g class="eyes" stroke="none"><ellipse cx="44" cy="59" rx="6.3" ry="8" fill="#3a3037"/><ellipse cx="84" cy="59" rx="6.3" ry="8" fill="#3a3037"/><circle cx="46" cy="56" r="2.5" fill="#fff"/><circle cx="86" cy="56" r="2.5" fill="#fff"/></g>
+  <ellipse cx="33" cy="70" rx="7.5" ry="4" fill="#f1b7bf" stroke="none" opacity=".7"/><ellipse cx="95" cy="70" rx="7.5" ry="4" fill="#f1b7bf" stroke="none" opacity=".7"/>
+  <path d="M60 68Q64 66 68 68L64 72Z" fill="#d88e9e" stroke="none"/><path d="M64 72Q61 78 57 74M64 72Q67 78 71 74" fill="none" stroke-width="1.8"/>
+  <path d="M20 63l-7-2m8 8l-8 1m94-7l7-2m-8 8l8 1" stroke="#8c7a86" stroke-width="1.5"/>
+  <path d="M54 87Q64 91 74 87" fill="none" stroke="#ca7f91" stroke-width="3"/><circle cx="64" cy="91" r="3.8" fill="#edc77c" stroke="#b99853" stroke-width="1.2"/>
+ </g>
+</svg>

@@ -26,3 +26,9 @@ Theme photos are bundled unchanged so opening a notebook does not contact photo 
 - Tide: YUCAR FotoGrafik on Unsplash, as credited by the upstream [image guide](https://github.com/timlrx/tailwind-nextjs-starter-blog/blob/b45bef66b40c63b6f57c15ee8cd090682238df4c/data/blog/guide-to-using-images-in-nextjs.mdx). [Photographer](https://unsplash.com/@yucar) · [Unsplash License](https://unsplash.com/license).
 
 License sources checked on 2026-09-22. The UI uses installed handwriting fonts and bundles no third-party font files.
+
+## Browser companions (0.3.40)
+
+`pets/cowcat.svg` and `pets/shiba.svg` are new PaperLoop vector artwork, distributed under this repository's license. They are separate from the header illustrations and legacy photographs. They include local CSS blinking, breathing and tail animations and respect reduced-motion preferences. No remote assets are requested.
+
+Interaction references consulted on 2026-10-04: [VS Code Pets](https://github.com/tonybaloney/vscode-pets) by Tony Baloney and contributors (companion animals), and [oneko.js](https://github.com/adryd325/oneko.js) by adryd325 and contributors (idle animation, position persistence and reduced motion). No source code, sprites or third-party artwork from those projects is bundled. PaperLoop uses click-to-restore and stationary, draggable companions, not cursor chasing.

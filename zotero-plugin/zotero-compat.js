@@ -1,5 +1,5 @@
 var PaperLoopZoteroCompat = new function () {
-	this.productVersion = "0.5.5";
+	this.productVersion = "0.5.6";
 	this.minHostMajor = 7;
 	this.maxHostMajor = 10;
 

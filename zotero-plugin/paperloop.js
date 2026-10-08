@@ -1,14 +1,16 @@
 var PaperLoopDOIBridge = {
-	version: "0.1.22",
+	version: "0.1.23",
 	blankNoteHTML: "<h1>PaperLoop 思考</h1>",
 	endpointPath: "/connector/paperloop/resolve",
 	appendEndpointPath: "/connector/paperloop/append-note",
 	searchEndpointPath: "/connector/paperloop/search-items",
 	stateEndpointPath: "/connector/paperloop/state",
 	addPDFEndpointPath: "/connector/paperloop/add-pdf",
+	addSnapshotEndpointPath: "/connector/paperloop/add-snapshot",
 	pendingNotes: new Map(),
 	pendingUpserts: new Map(),
 	pendingPDFs: new Map(),
+	pendingSnapshots: new Map(),
 
 	register() {
 		PaperLoopZoteroCompat.registerEndpoint(this.endpointPath, this.Endpoint);
@@ -16,6 +18,7 @@ var PaperLoopDOIBridge = {
 		PaperLoopZoteroCompat.registerEndpoint(this.searchEndpointPath, this.SearchItemsEndpoint);
 		PaperLoopZoteroCompat.registerEndpoint(this.stateEndpointPath, this.StateEndpoint);
 		PaperLoopZoteroCompat.registerEndpoint(this.addPDFEndpointPath, this.AddPDFEndpoint);
+		PaperLoopZoteroCompat.registerEndpoint(this.addSnapshotEndpointPath, this.AddSnapshotEndpoint);
 	},
 
 	unregister() {
@@ -24,6 +27,7 @@ var PaperLoopDOIBridge = {
 		PaperLoopZoteroCompat.unregisterEndpoint(this.searchEndpointPath, this.SearchItemsEndpoint);
 		PaperLoopZoteroCompat.unregisterEndpoint(this.stateEndpointPath, this.StateEndpoint);
 		PaperLoopZoteroCompat.unregisterEndpoint(this.addPDFEndpointPath, this.AddPDFEndpoint);
+		PaperLoopZoteroCompat.unregisterEndpoint(this.addSnapshotEndpointPath, this.AddSnapshotEndpoint);
 	},
 
 	normalizeDOI(value) {
@@ -312,6 +316,43 @@ var PaperLoopDOIBridge = {
 		return null;
 	},
 
+	async findUsableSnapshot(parentItem) {
+		const ids = typeof parentItem.getAttachments === 'function' ? parentItem.getAttachments() : [];
+		if (!ids.length) return null;
+		for (const attachment of await Zotero.Items.getAsync(ids)) {
+			if (!attachment || attachment.deleted
+				|| !['text/html', 'application/xhtml+xml'].includes(attachment.attachmentContentType)
+				|| attachment.attachmentLinkMode !== Zotero.Attachments?.LINK_MODE_IMPORTED_URL) continue;
+			try {
+				// HTML files imported from disk are not webpage snapshots. Require
+				// Zotero's saved-webpage mode and an actual HTTP source, while allowing
+				// older snapshots whose encrypted CNKI query differs from today's URL.
+				if (typeof attachment.getField !== 'function'
+					|| !/^https?:\/\//i.test(String(attachment.getField('url') || ''))) continue;
+				if (typeof attachment.fileExists === 'function' && await attachment.fileExists()) return attachment;
+			} catch (e) { Zotero.debug(`PaperLoop snapshot file unavailable: ${e.message}`); }
+		}
+		return null;
+	},
+
+	async importSnapshot(parentItem, data) {
+		const key = `${parentItem.libraryID}:${parentItem.id}`;
+		const previous = this.pendingSnapshots.get(key) || Promise.resolve();
+		const operation = previous.catch(() => {}).then(async () => {
+			const existing = await this.findUsableSnapshot(parentItem);
+			if (existing) return {attachmentKey: existing.key, created: false, hasSnapshot: true};
+			if (typeof Zotero.Attachments.importFromSnapshotContent !== 'function') throw new Error('SNAPSHOT_API_UNAVAILABLE');
+			const attachment = await Zotero.Attachments.importFromSnapshotContent({
+				parentItemID: parentItem.id, url: data.url,
+				title: 'Snapshot', snapshotContent: data.snapshotContent
+			});
+			return {attachmentKey: attachment.key, created: true, hasSnapshot: true};
+		});
+		this.pendingSnapshots.set(key, operation);
+		try { return await operation; }
+		finally { if (this.pendingSnapshots.get(key) === operation) this.pendingSnapshots.delete(key); }
+	},
+
 	decodePDFBase64(base64) {
 		const binary = atob(String(base64 || ""));
 		const bytes = new Uint8Array(binary.length);
@@ -454,6 +495,7 @@ var PaperLoopDOIBridge = {
 
 		const note = await this.findCanonicalPaperLoopNote(item);
 		const pdf = await this.findUsablePDF(item);
+		const snapshot = await this.findUsableSnapshot(item);
 		const noteHTML = note ? String(note.getNote() || "") : "";
 		return {
 			status: item.deleted ? "deleted" : "existing",
@@ -467,7 +509,10 @@ var PaperLoopDOIBridge = {
 			notebookVersion: 1,
 			thought: this.noteHTMLToText(noteHTML),
 			hasPDF: !!pdf,
-			pdfAttachmentKey: pdf ? pdf.key : null
+			pdfAttachmentKey: pdf ? pdf.key : null,
+			hasSnapshot: !!snapshot,
+			snapshotAttachmentKey: snapshot ? snapshot.key : null,
+			filesEditable: library.filesEditable !== false
 		};
 	},
 
@@ -773,6 +818,36 @@ PaperLoopDOIBridge.StateEndpoint.prototype = {
 };
 
 PaperLoopDOIBridge.AddPDFEndpoint = function () {};
+
+PaperLoopDOIBridge.AddSnapshotEndpoint = function () {};
+PaperLoopDOIBridge.AddSnapshotEndpoint.prototype = {
+	supportedMethods: ['POST'],
+	supportedDataTypes: ['application/json'],
+	permitBookmarklet: false,
+	async init(requestData) {
+		const data = requestData.data || {};
+		const reply = (status, body) => [status, 'application/json', JSON.stringify(body)];
+		if (!data.itemKey || !data.libraryID || typeof data.snapshotContent !== 'string'
+			|| !/<(?:!doctype\s+html|html)[\s>]/i.test(data.snapshotContent)
+			|| !/^https?:\/\/(?:[a-z0-9-]+\.)*cnki\.net\/kcms2?\/(?:article\/abstract|detail\/detail\.aspx)/i.test(data.url || '')) {
+			return reply(400, {error: 'INVALID_SNAPSHOT_DATA'});
+		}
+		if (data.snapshotContent.length > 64 * 1024 * 1024) return reply(413, {error: 'SNAPSHOT_TOO_LARGE'});
+		const lookup = await PaperLoopDOIBridge.findItemByKey(data.libraryID, data.itemKey);
+		if (lookup.notEditable || lookup.ambiguous) return reply(409, {error: 'LIBRARY_NOT_EDITABLE'});
+		const item = lookup.item;
+		if (!item || item.deleted || !item.isRegularItem()) return reply(404, {error: 'ITEM_NOT_FOUND'});
+		const library = Zotero.Libraries.get(item.libraryID);
+		if (!library?.editable || library.filesEditable === false) return reply(409, {error: 'FILES_NOT_EDITABLE'});
+		try {
+			const result = await PaperLoopDOIBridge.importSnapshot(item, data);
+			return reply(200, {status: 'ok', libraryID: item.libraryID, itemKey: item.key, ...result});
+		} catch (e) {
+			Zotero.logError(e);
+			return reply(500, {error: 'SNAPSHOT_IMPORT_FAILED', detail: String(e.message || e).slice(0, 300)});
+		}
+	}
+};
 
 PaperLoopDOIBridge.AddPDFEndpoint.prototype = {
 	supportedMethods: ["POST"],

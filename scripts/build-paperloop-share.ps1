@@ -1,4 +1,4 @@
-param([string]$PackageDirectory='paperloop-release/verified-0335')
+param([string]$PackageDirectory='paperloop-release')
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $repo=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
@@ -16,6 +16,8 @@ Copy-Item -LiteralPath (Join-Path $packages "PaperLoop-for-Zotero-$nativeVersion
 Copy-Item -LiteralPath (Join-Path $repo 'docs/INSTALLATION.md') -Destination (Join-Path $folder 'START-HERE.txt')
 Copy-Item -LiteralPath (Join-Path $repo 'COPYING'),(Join-Path $repo 'NOTICE.md') -Destination $folder
 foreach($name in @('INSTALLATION.md','CREDITS.md','PRIVACY.md','COMPATIBILITY.md')){Copy-Item -LiteralPath (Join-Path $repo "docs/$name") -Destination (Join-Path $folder 'docs')}
+New-Item -ItemType Directory -Path (Join-Path $folder 'docs/validation') | Out-Null
+Copy-Item -LiteralPath (Join-Path $repo "docs/validation/v$version.md") -Destination (Join-Path $folder 'docs/validation')
 Copy-Item -LiteralPath (Join-Path $repo "docs/releases/v$version.md") -Destination (Join-Path $folder 'RELEASE-NOTES.md')
 $stream=[IO.File]::Open($zipPath,[IO.FileMode]::CreateNew)
 $archive=[IO.Compression.ZipArchive]::new($stream,[IO.Compression.ZipArchiveMode]::Create)

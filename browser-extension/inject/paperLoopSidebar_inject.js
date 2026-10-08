@@ -17,6 +17,7 @@ Zotero.PaperLoopSidebar = new function () {
 		}
 	}});
 	const DRAFT = 'paperloop:notebookDraft:v1:';
+	const libraryDraftKey = (url, libraryID) => 'paperloop:notebookDraft:v2:'+libraryID+':'+url;
 	const APPEARANCE = 'paperloop:appearance:v1';
 	const EMPTY = '<div data-schema-version="9"><h1>PaperLoop 思考</h1><p></p></div>';
 	const TAGS = 'div p h1 h2 h3 h4 h5 h6 br strong b em i u s strike sub sup span a img blockquote ul ol li table thead tbody tr td th hr pre code'.split(' ');
@@ -28,20 +29,47 @@ Zotero.PaperLoopSidebar = new function () {
 	let prefPromise, geometryTimer;
 	let syncEpoch=0;
 	let autoSaveTimer,autoSaving=false,composing=false,editRevision=0;
+	// A save that hears nothing for this long releases the panel. Progress
+	// messages from the background re-arm it, so long image batches still finish.
+	const SAVE_STALL_MS=240000;
+	let saveRun=0,saveWatchdog,kickSaveWatchdog=()=>{};
 	let gallery, flow, activeView='notes', imagesBusy=false, pendingRead=0, pendingCount=0, savedImageCount=0;
-	let importing=false,reviewRestore=false,restoring=false;
+	let importing=false,reviewRestore=false,restoring=false,initializing=false,draftReadable=true;
 	const t = (zh,en) => lang === 'en' ? en : zh;
 	const currentKey = () => { const u = new URL(location.href); u.hash = ''; return u.href; };
 	const valid = token => !!host && token === generation;
+	const backupIdentity = () => state.remote&&state.selectedTarget&&state.remote.libraryID===state.selectedTarget.libraryID?{libraryID:state.remote.libraryID,itemKey:state.remote.itemKey}:{};
 	const allImages = () => flow?flow.images():[...el.editor.querySelectorAll('img[data-attachment-key]')];
 	const escape = value => String(value || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 	const errorText = e => e && e.message || t('操作失败，请确认 Zotero 已打开','Operation failed. Check Zotero is open.');
-	function params(extra={}) {
-		let doi = '';
+	// Cloudflare/CNKI checks replace the article, so the translator only reports an English
+	// "could not scrape" error. Tell the user what to do instead.
+	const botCheckPage = () => /^\s*(请稍候|Just a moment|安全验证|Attention Required|Are you a robot)/i.test(document.title)||/\/verify\//.test(location.pathname)||/Are you a robot\?|Verify you are human|请完成安全验证|拖动下方拼图/i.test((document.body&&document.body.innerText||'').slice(0,2000));
+	const saveErrorText = e => botCheckPage() ? t('网页正在进行人机验证，请先在网页上完成验证，等文章显示后再保存；笔记内容仍保留在面板中，请确认草稿状态','This page is showing a robot check. Complete it, then save again once the article appears. Your notes remain in the panel; check the draft status.') : errorText(e);
+	function pageDOI() {
 		for (const node of document.querySelectorAll('meta[name="citation_doi"],meta[name="dc.identifier"],meta[name="DC.Identifier"],meta[name="prism.doi"]')) {
-			const match = String(node.content).match(/10\.\d{4,9}\/[^\s"'<>?#]+/i); if (match) { doi = match[0]; break; }
+			const match = String(node.content).match(/10\.\d{4,9}\/[^\s"'<>?#]+/i); if (match) return match[0];
 		}
-		return {documentKey:state.documentKey, targetID:state.selectedTarget && state.selectedTarget.targetID, doi, ...extra};
+		return '';
+	}
+	function params(extra={}) {
+		return {documentKey:state.documentKey, targetID:state.selectedTarget && state.selectedTarget.targetID, doi:pageDOI(), ...extra};
+	}
+	// Identifies the article shown, independent of its URL.
+	const fingerprint = () => pageDOI().toLowerCase() || document.title;
+	// Allow only known tracking changes; stale SPA metadata is not proof that
+	// adding an article identifier is safe. Keep this rule identical in Images.
+	function sameDocument(a, b) {
+		try {
+			const x=new URL(a), y=new URL(b);
+			if (x.origin!==y.origin || x.pathname!==y.pathname) return false;
+			// Only known tracking parameters are non-identifying. Never infer that
+			// adding/removing an arbitrary id, v, filename, or repeated value is safe.
+			const identity = url => JSON.stringify([...url.searchParams].filter(([key]) =>
+				!/^utm_/i.test(key) && !/^(?:fbclid|gclid|msclkid|via)$/i.test(key) && key.toLowerCase()!=='via=ihub'
+			).sort(([ak,av],[bk,bv])=>ak.localeCompare(bk)||av.localeCompare(bv)));
+			return identity(x)===identity(y);
+		} catch (_) { return false; }
 	}
 	function clean(html) {
 		const safe = DOMPurify.sanitize(String(html || ''), {ALLOWED_TAGS:TAGS,
@@ -84,7 +112,7 @@ Zotero.PaperLoopSidebar = new function () {
 	const equivalent=(a,b)=>Zotero.PaperLoopSync.equal(clean(a),clean(b));
 	function scheduleAutoSave(delay=1800){
 		clearTimeout(autoSaveTimer);
-		if(!host||!dirty||saving||imagesBusy||importing||reviewRestore||composing||remoteConflict||!state.remote?.noteKey||state.remote.status!=='existing')return;
+		if(!host||initializing||!draftReadable||!dirty||saving||imagesBusy||importing||reviewRestore||composing||remoteConflict||!state.remote?.noteKey||state.remote.status!=='existing')return;
 		const token=generation;
 		autoSaveTimer=setTimeout(()=>{if(valid(token)&&!document.hidden&&!gallery.renameEditor)sidebar.save({automatic:true});},delay);
 	}
@@ -108,13 +136,17 @@ Zotero.PaperLoopSidebar = new function () {
 		targetLabel.textContent = state.selectedTarget && (state.selectedTarget.path || state.selectedTarget.name) || t('选择保存分类','Choose collection');
 		el.target.replaceChildren(targetLabel); el.target.title = targetLabel.textContent;
 		el.save.textContent = saving ? t('保存中…','Saving…') : t('保存到 Zotero','Save to Zotero');
-		el.save.disabled = saving || imagesBusy || importing || restoring || !state.selectedTarget || !!remoteConflict;
-		el.target.disabled = saving || imagesBusy || restoring;
-		el.editor.contentEditable = (saving&&!autoSaving) || imagesBusy || restoring ? 'false' : 'true';
+		el.save.disabled = initializing || !draftReadable || saving || imagesBusy || importing || restoring || !state.selectedTarget || !!remoteConflict;
+		el.target.disabled = initializing || saving || imagesBusy || restoring;
+		el.editor.contentEditable = initializing || !draftReadable || (saving&&!autoSaving) || imagesBusy || restoring ? 'false' : 'true';
 		el.conflict.hidden = !remoteConflict;
 		el.panel.dataset.font = appearance.font;
 		el.font.value = appearance.font;
 		el.theme.value=appearance.theme||'cowcat';el.mode.value=appearance.mode||'light';el.art.value=appearance.art||'ink';Zotero.PaperLoopThemes.apply(shadow,appearance);
+		el.minimizeMode.value=appearance.minimizeMode||'pet';el.pet.value=appearance.pet||'theme';
+		el.pet.disabled=appearance.minimizeMode==='ribbon';
+		el.mini.title=t('点击展开笔记 · 拖动调整位置','Click to open notes · Drag to move');
+		el.mini.setAttribute('aria-label',el.mini.title);
 		el.literature.checked = state.autoDisplayCategories ? state.autoDisplayCategories.literature !== false : true;
 		el.webpage.checked = state.autoDisplayCategories ? state.autoDisplayCategories.webpage !== false : true;
 		el.panel.hidden = !!state.minimized; el.mini.hidden = !state.minimized;
@@ -122,24 +154,32 @@ Zotero.PaperLoopSidebar = new function () {
 		el.editor.dataset.placeholder = t('记下这一页值得留下的想法…\n截图：Win + Shift + S，然后在这里 Ctrl + V\n本地图片：点“添加图片”，或拖入面板\n网页图片：右键 → 添加到 PaperLoop\n最后点“保存到 Zotero”，图文一起保存','Keep an idea worth returning to…\nScreenshot: Win + Shift + S, then Ctrl + V here\nLocal images: Add images, or drop into the panel\nWeb images: right-click → Add to PaperLoop\nSave to Zotero to keep both text and images');
 		imageCount(pendingCount,savedImageCount);if(gallery)gallery.controls();
 		if(flow)flow.update();
-		for(const button of shadow.querySelectorAll('.image-import,.backup-now,.backup-remote,.backup-row button'))button.disabled=saving||imagesBusy||importing||restoring;
+		for(const button of shadow.querySelectorAll('.image-import,.backup-now,.backup-remote,.backup-row button'))button.disabled=initializing||!draftReadable||saving||imagesBusy||importing||restoring;
 	}
 	function persist() {
 		clearTimeout(draftTimer);
-		if (!host || !state) return writes;
+		// An unread draft must not be replaced by the temporary empty editor,
+		// including when the panel closes or its storage read fails.
+		if (!host || !state || initializing || !draftReadable) return writes;
 		const token = generation, key = DRAFT + state.documentKey;
-		const value = {html:serialize(),baseHTML,dirty,reviewRestore,removedImages:flow?flow.excludedIDs():[],imageNames:flow?flow.pendingNames():{},updatedAt:Date.now()};
+		const libraryID=state.selectedTarget?.libraryID||state.draftLibraryID;
+		const targetID=state.selectedTarget?.targetID||state.draftTargetID;
+		const value = {html:serialize(),baseHTML,dirty,reviewRestore,libraryID,targetID,removedImages:flow?flow.excludedIDs():[],imageNames:flow?flow.pendingNames():{},updatedAt:Date.now()};
 		draft(t('保存草稿…','Saving draft…'),'pending');
-		const backupPayload={action:'backup',documentKey:state.documentKey,targetID:state.selectedTarget?.targetID,...value};
-		writes = writes.catch(() => {}).then(() => browser.storage.local.set({[key]:value})).then(async()=>{
+		const backupPayload={action:'backup',documentKey:state.documentKey,targetID:state.selectedTarget?.targetID,...value,...backupIdentity()};
+		const slots={[key]:value};if(libraryID)slots[libraryDraftKey(state.documentKey,libraryID)]=value;
+		// Local durability must not queue behind a slow remote image backup.
+		writes = writes.catch(() => {}).then(() => browser.storage.local.set(slots));
+		writes.then(async()=>{
 			try{await api.paperLoopNotebook(backupPayload);}catch(e){if(valid(token))message(t('草稿已保存，自动备份暂未成功：','Draft saved; automatic backup failed: ')+errorText(e),'error');}
-		});
+		}).catch(()=>{});
 		writes.then(() => { if (valid(token)) draft(dirty ? t('草稿已存本机','Draft saved locally') : t('已与 Zotero 同步','Synced with Zotero'), dirty ? 'pending' : 'synced'); }, () => {
 			if (valid(token)) { draft(t('草稿未存，请复制备份','Draft not saved; copy a backup'),'error'); message(t('本机草稿保存失败，可在 ··· 中复制笔记备份','Local draft failed. Copy a backup from ···.'),'error'); }
 		});
 		return writes;
 	}
 	function changed() {
+		if(initializing||!draftReadable)return;
 		editRevision++;
 		if(flow){flow.extract();flow.update();}
 		dirty = !equivalent(serialize(),baseHTML) || !!flow?.hasDraftChanges() || pendingCount>0;
@@ -179,7 +219,7 @@ Zotero.PaperLoopSidebar = new function () {
 		return true;
 	}
 	async function refresh(force=false) {
-		if (!host || !state.selectedTarget || saving || restoring || composing || reviewRestore || importing || gallery?.renameEditor || (!force && (document.hidden || imagesBusy))) return;
+		if (!host || !draftReadable || !state.selectedTarget || saving || restoring || composing || reviewRestore || importing || gallery?.renameEditor || (!force && (document.hidden || imagesBusy))) return;
 		if (refreshJob && refreshJob.token === generation) return refreshJob.promise;
 		const token = generation, epoch=syncEpoch, targetID = state.selectedTarget.targetID;
 		const promise = (async () => {
@@ -187,6 +227,8 @@ Zotero.PaperLoopSidebar = new function () {
 				const remote = await api.paperLoopGetDocumentState(params());
 				if (!valid(token) || epoch!==syncEpoch || state.selectedTarget.targetID !== targetID || saving) return;
 				state.remote = remote;
+				// Keep the article identity current (SPA metadata can arrive late).
+				if (currentKey() === state.documentKey) state.fingerprint = fingerprint();
 				if (remote.status === 'existing' && remote.noteHTML) {
 					reconcile(remote);
 					if (remoteConflict) message(t('同一处内容被两端修改，请选择保留哪一版；两版均会备份','Both sides edited the same content. Choose a version; both are backed up.'),'error');
@@ -199,6 +241,14 @@ Zotero.PaperLoopSidebar = new function () {
 		})();
 		refreshJob = {token,promise};
 		try { return await promise; } finally { if (refreshJob && refreshJob.promise === promise) refreshJob = null; }
+	}
+	function tick() {
+		if (!host || !state) return;
+		if (currentKey() !== state.documentKey) { followURL().catch(Zotero.logError); return; }
+		// A "saving" image seen in the pending list (e.g. saved from another tab)
+		// marks the gallery busy; poll until that save is no longer reported.
+		if (imagesBusy && !saving && !importing && !restoring) { pendingImages().catch(Zotero.logError); return; }
+		refresh();
 	}
 	async function loadRemote() {
 		if (!remoteConflict || saving || imagesBusy) return;
@@ -222,7 +272,7 @@ Zotero.PaperLoopSidebar = new function () {
 		baseHTML=remote.noteHTML;remoteConflict=null;dirty=true;render();await sidebar.save();
 	}
 	async function withRestore(action){
-		if(!host||saving||imagesBusy||importing||restoring)return;const token=generation;restoring=true;clearTimeout(autoSaveTimer);render();
+		if(!host||initializing||!draftReadable||saving||imagesBusy||importing||restoring)return;const token=generation;restoring=true;clearTimeout(autoSaveTimer);render();
 		try{return await action();}finally{if(valid(token)){restoring=false;render();}}
 	}
 	const restoreDraft=()=>withRestore(restoreDraftContent);
@@ -240,7 +290,7 @@ Zotero.PaperLoopSidebar = new function () {
 	}
 	async function checkpoint(protectID){
 		await writes.catch(()=>{});if(!host)return;
-		return api.paperLoopNotebook(params({action:'backup',force:true,protectID,html:serialize(),baseHTML,removedImages:flow.excludedIDs(),imageNames:flow.pendingNames()}));
+		return api.paperLoopNotebook(params({action:'backup',force:true,protectID,html:serialize(),baseHTML,removedImages:flow.excludedIDs(),imageNames:flow.pendingNames(),...backupIdentity()}));
 	}
 	async function showBackups(){
 		if(!host)return;const token=generation;el.backups.hidden=false;el.settings.hidden=true;el.picker.hidden=true;el['backup-list'].textContent=t('读取备份…','Loading backups…');
@@ -252,9 +302,24 @@ Zotero.PaperLoopSidebar = new function () {
 	}
 	async function restoreVersionContent(id){
 		if(saving||imagesBusy||importing)return;const token=generation;await checkpoint(id);if(!valid(token))return;
-		const backup=await api.paperLoopNotebook(params({action:'restore-backup',id}));if(!valid(token))return;
+		const backup=await api.paperLoopNotebook(params({action:'restore-backup',id,currentHTML:serialize()}));if(!valid(token))return;
 		invalidateSync();clearTimeout(autoSaveTimer);reviewRestore=true;flow.restoreDraft(backup.removedImages,backup.imageNames);
-		const part=parts(backup.html);for(const key of backup.savedKeys||[])if(/^[A-Z0-9]{8}$/.test(key)&&!part.root.querySelector(`img[data-attachment-key="${key}"]`)){const img=document.createElement('img');img.dataset.attachmentKey=key;part.root.append(img);}
+		const part=parts(backup.html);
+		for(const replay of backup.replayedImages||[]){
+			if(!/^[A-Z0-9]{8}$/.test(replay.imageKey))continue;
+			for(const node of part.root.querySelectorAll('.pl-ref-'+replay.imageKey)){node.classList.remove('pl-ref-'+replay.imageKey);node.classList.add('pl-ref-'+replay.id);}
+			for(const img of part.root.querySelectorAll(`img[data-attachment-key="${replay.imageKey}"]`)){
+				const wrapper=img.parentElement,heading=wrapper?.previousElementSibling;
+				img.remove();if(wrapper?.tagName==='P'&&!wrapper.textContent.trim()&&!wrapper.children.length){if(heading?.classList.contains('paperloop-figure-title'))heading.remove();wrapper.remove();}
+			}
+		}
+		for(const image of backup.savedImages||(backup.savedKeys||[]).map(imageKey=>({imageKey}))){
+			const key=image.imageKey;if(!/^[A-Z0-9]{8}$/.test(key)||part.root.querySelector(`img[data-attachment-key="${key}"]`))continue;
+			const img=document.createElement('img');img.dataset.attachmentKey=key;img.alt=image.caption||'';
+			const width=Number(image.width),height=Number(image.height);
+			if(width>0&&width<=12000){const shown=Math.min(640,width);img.width=shown;if(height>0&&height<=12000)img.height=Math.max(1,Math.round(height*shown/width));}
+			part.root.append(img);
+		}
 		loadHTML(part.header+part.root.innerHTML);dirty=true;remoteConflict=null;el.backups.hidden=true;await pendingImages();render();await persist();
 		message(t('已恢复本机备份；检查后点击“保存到 Zotero”','Backup restored. Review it, then save to Zotero.'),'ready');
 	}
@@ -266,7 +331,7 @@ Zotero.PaperLoopSidebar = new function () {
 		message(t('已从 Zotero 恢复笔记与已保存图片','Recovered the note and saved images from Zotero.'),'ready');
 	}
 	async function importFiles(input){
-		if(importing||saving||imagesBusy||restoring)return;const files=[...input];if(!files.length)return;
+		if(initializing||!draftReadable||importing||saving||imagesBusy||restoring)return;const files=[...input];if(!files.length)return;
 		if(files.some(f=>!/^image\/(png|jpeg|gif|webp)$/i.test(f.type))){message(t('请选择 PNG、JPEG、GIF 或 WebP 图片','Choose PNG, JPEG, GIF or WebP images.'),'error');return;}
 		if(files.length>12||files.some(f=>f.size>12*1024*1024)){message(t('每次最多 12 张图片，每张不超过 12 MB','Choose up to 12 images, at most 12 MB each.'),'error');return;}
 		const token=generation;importing=true;render();let count=0;
@@ -276,16 +341,20 @@ Zotero.PaperLoopSidebar = new function () {
 		finally{if(valid(token)){importing=false;await pendingImages();flow.ensureEditable();changed();render();}}
 	}
 	async function selectTarget(target) {
-		if(saving||imagesBusy)return;
+		if(initializing||saving||imagesBusy)return;
 		if(dirty && state.selectedTarget && target.libraryID !== state.selectedTarget.libraryID){message(t('请先保存或备份当前草稿，再切换文库','Save or back up your draft before switching libraries.'),'error');return;}
 		const token=generation;
 		invalidateSync();
 		try {
+			const switching=state.selectedTarget&&target.libraryID!==state.selectedTarget.libraryID;
+			let storedDraft;
+			if(switching){initializing=true;render();await writes.catch(()=>{});const key=libraryDraftKey(state.documentKey,target.libraryID);storedDraft=(await browser.storage.local.get(key))[key];if(!valid(token))return;}
 			const result=await api.paperLoopSetTarget({targetID:target.targetID});
 			if(!valid(token))return;
-			if(state.selectedTarget && target.libraryID !== state.selectedTarget.libraryID){baseHTML='';loadHTML(EMPTY);dirty=false;remoteConflict=null;}
-			state.selectedTarget=result.target||target; el.picker.hidden=true; render(); await refresh(true);
+			if(switching){baseHTML=storedDraft?.baseHTML||'';flow.restoreDraft(storedDraft?.removedImages,storedDraft?.imageNames);loadHTML(storedDraft?.html||EMPTY);dirty=!!storedDraft?.dirty;reviewRestore=!!storedDraft?.reviewRestore;remoteConflict=null;}
+			state.selectedTarget=result.target||target;state.draftLibraryID=state.selectedTarget.libraryID;state.draftTargetID=state.selectedTarget.targetID; el.picker.hidden=true; render(); await refresh(true);
 		}catch(e){if(valid(token))message(errorText(e),'error');}
+		finally{if(valid(token)){initializing=false;render();scheduleAutoSave();}}
 	}
 	function results() {
 		el.results.replaceChildren();
@@ -302,7 +371,9 @@ Zotero.PaperLoopSidebar = new function () {
 			const result=await api.paperLoopGetCollections({});
 			if(!valid(token))return;
 			targets=result.targets||[];
-			if(!state.selectedTarget)state.selectedTarget=targets.find(x=>x.targetID===result.selectedTargetID)||null;
+			if(state.draftLibraryID){
+				state.selectedTarget=targets.find(x=>x.libraryID===state.draftLibraryID&&x.targetID===state.draftTargetID)||targets.find(x=>x.libraryID===state.draftLibraryID)||null;
+			}else if(!state.selectedTarget)state.selectedTarget=targets.find(x=>x.targetID===result.selectedTargetID)||null;
 			results();render();await refresh(true);
 		}catch(e){if(valid(token))message(errorText(e),'error');}
 	}
@@ -338,6 +409,8 @@ Zotero.PaperLoopSidebar = new function () {
 			appearance.font=appearance.font==='hand'?'hand':'standard';
 			if(!Zotero.PaperLoopThemes.arts.includes(appearance.art))appearance.art='ink';
 			appearance.theme=Zotero.PaperLoopThemes.resolve(appearance.theme);
+			appearance.minimizeMode=appearance.minimizeMode==='ribbon'?'ribbon':'pet';
+			if(!['theme','cowcat','shiba'].includes(appearance.pet))appearance.pet='theme';
 			if(!['light','dark','auto'].includes(appearance.mode))appearance.mode='light';
 		}).catch(Zotero.logError);
 		return prefPromise;
@@ -349,7 +422,12 @@ Zotero.PaperLoopSidebar = new function () {
 		left=Math.max(gap,Math.min(left,innerWidth-w-gap));top=Math.max(gap,Math.min(top,innerHeight-h-gap));
 		Object.assign(host.style,{left:left+'px',top:top+'px',width:w+'px',height:h+'px'});
 		el.panel.dataset.compact=String(w<370);
-		if(state.minimized)Object.assign(host.style,{left:(left+w/2<innerWidth/2?gap:innerWidth-42)+'px',width:'34px',height:'112px'});
+		if(state.minimized){
+			const pet=appearance.minimizeMode!=='ribbon',mw=pet?104:34,mh=112;
+			const x=Number.isFinite(appearance.petLeft)?appearance.petLeft:innerWidth-mw-24;
+			const y=Number.isFinite(appearance.petTop)?appearance.petTop:top;
+			Object.assign(host.style,{left:Math.max(gap,Math.min(pet?x:(left+w/2<innerWidth/2?gap:innerWidth-mw-gap),innerWidth-mw-gap))+'px',top:Math.max(gap,Math.min(y,innerHeight-mh-gap))+'px',width:mw+'px',height:mh+'px'});
+		}
 	}
 	function persistGeometry(){clearTimeout(geometryTimer);geometryTimer=setTimeout(()=>browser.storage.local.set({[APPEARANCE]:appearance}).catch(Zotero.logError),120);}
 	function resizePanel(factor){const r=host.getBoundingClientRect();appearance.width=Math.max(280,Math.min(innerWidth-16,r.width*factor));appearance.height=Math.max(320,Math.min(innerHeight-16,r.height*factor));geometry();persistGeometry();}
@@ -361,6 +439,7 @@ Zotero.PaperLoopSidebar = new function () {
 			const move=v=>{
 				const dx=v.clientX-startX,dy=v.clientY-startY;if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
 				if(mode==='resize'){appearance.width=Math.max(320,rect.width+dx);appearance.height=Math.max(360,rect.height+dy);}
+				else if(mode==='mini'){appearance.petTop=Math.max(8,Math.min(rect.top+dy,innerHeight-120));appearance.petLeft=Math.max(8,Math.min(rect.left+dx,innerWidth-rect.width-8));}
 				else{appearance.top=Math.max(8,rect.top+dy);if(mode!=='mini')appearance.left=Math.max(8,rect.left+dx);}
 				geometry();
 			};
@@ -374,7 +453,7 @@ Zotero.PaperLoopSidebar = new function () {
 			handle.addEventListener('pointermove',move);handle.addEventListener('pointerup',end,{once:true});handle.addEventListener('pointercancel',cancel,{once:true});
 		};
 	}
-	function setMinimized(value){state.minimized=value;render();geometry();api.paperLoopSetMinimized(value).catch(Zotero.logError);}
+	function setMinimized(value){state.minimized=value;render();geometry();(value?el.mini:shadow.querySelector('.minimize')).focus({preventScroll:true});api.paperLoopSetMinimized(value).catch(Zotero.logError);}
 	function create() {
 		host=document.createElement('div');host.setAttribute('data-paperloop-sidebar-host','');
 		host.style.cssText='all:initial;position:fixed;z-index:2147483646;display:block;color-scheme:light;';
@@ -402,23 +481,24 @@ Zotero.PaperLoopSidebar = new function () {
 		<div class="content" id="pl-notes" role="tabpanel" aria-labelledby="pl-tab-notes"><div class="label" data-zh="阅读笔记" data-en="READING NOTES"></div><div class="editor" contenteditable="true" role="textbox" aria-multiline="true" aria-label="阅读笔记" spellcheck="false"></div></div>
 		<div class="media-area" id="pl-images" role="tabpanel" aria-labelledby="pl-tab-images" hidden></div>
 		<div class="status" role="status" aria-live="polite"></div><div class="footer"><span class="draft"></span><button class="save"></button></div><div class="resize" title="调整窗口大小">◢</div>
-		</section><div class="mini" hidden role="button" tabindex="0" aria-label="展开 PaperLoop"><i class="mini-mark" aria-hidden="true"></i><span>PaperLoop</span></div>`;
+		</section><div class="mini" hidden role="button" tabindex="0" aria-label="展开 PaperLoop"><img class="pet-image" alt="" draggable="false"><i class="mini-mark" aria-hidden="true"></i><span>PaperLoop</span></div>`;
 		for(const name of ['panel','bar','title','meta','target','settings','font','literature','webpage','picker','query','results','conflict','content','editor','status','draft','footer','save','resize','mini','tab-notes','tab-images','media-area'])el[name]=shadow.querySelector('.'+name);
 		const choices=document.createElement('div');choices.innerHTML='<label><span data-zh="整体主题" data-en="Theme"></span><select class="theme" aria-label="整体主题"><optgroup label="小动物 · Animals"><option value="cowcat" data-zh="奶牛猫 · 黑白与粉" data-en="Cow cat · black, white, pink"></option><option value="shiba" data-zh="柴犬 · 赤橙与奶白" data-en="Shiba · orange, cream"></option></optgroup><optgroup label="自然 · Nature"><option value="iris" data-zh="鸢尾 · 紫花与叶绿" data-en="Iris · violet, leaf green"></option><option value="tide" data-zh="潮汐 · 海蓝与落日" data-en="Tide · sea blue, sunset"></option></optgroup><optgroup label="纸张 · Paper"><option value="paper" data-zh="暖纸 · 热茶与书" data-en="Warm paper · tea and a book"></option><option value="sage" data-zh="雾松 · 松枝与麻雀" data-en="Sage · pine and a sparrow"></option><option value="ink" data-zh="墨蓝 · 月亮与猫头鹰" data-en="Ink · moon and an owl"></option></optgroup></select></label><label><span data-zh="插画风格" data-en="Illustration"></span><select class="art" aria-label="插画风格"><option value="ink" data-zh="墨线淡彩" data-en="Ink and wash"></option><option value="watercolor" data-zh="水彩方块拼贴" data-en="Watercolor squares"></option></select></label><label><span data-zh="明暗外观" data-en="Appearance"></span><select class="mode" aria-label="明暗外观"><option value="light" data-zh="浅色" data-en="Light"></option><option value="dark" data-zh="深色" data-en="Dark"></option><option value="auto" data-zh="跟随系统" data-en="System"></option></select></label>';el.settings.prepend(choices);el.theme=shadow.querySelector('.theme');el.mode=shadow.querySelector('.mode');el.art=shadow.querySelector('.art');
 		const notebook=document.createElement('div');notebook.className='notebook-flow';el.content.before(notebook);notebook.append(el.content,el['media-area']);el.content.removeAttribute('role');el.content.removeAttribute('aria-labelledby');el['media-area'].removeAttribute('role');el['media-area'].removeAttribute('aria-labelledby');
+		const petChoices=document.createElement('div');petChoices.innerHTML='<label><span data-zh="缩小后" data-en="When minimized"></span><select class="minimizeMode" aria-label="缩小后"><option value="pet" data-zh="浏览器宠物" data-en="Browser pet"></option><option value="ribbon" data-zh="简洁书签" data-en="Bookmark ribbon"></option></select></label><label><span data-zh="宠物伙伴" data-en="Pet companion"></span><select class="pet" aria-label="宠物伙伴"><option value="theme" data-zh="跟随主题" data-en="Match theme"></option><option value="cowcat" data-zh="奶牛猫" data-en="Cow cat"></option><option value="shiba" data-zh="柴犬" data-en="Shiba"></option></select></label>';choices.append(petChoices);el.minimizeMode=petChoices.querySelector('.minimizeMode');el.pet=petChoices.querySelector('.pet');
 		const token=generation;
 		gallery=new Zotero.PaperLoopGallery(el['media-area'],el.panel,{
 			t,request:extra=>{if(!valid(token))return Promise.reject(new Error('页面已切换'));return api.paperLoopNotebook(params(extra));},
 			canLoad:()=>!!state.selectedTarget,
 			onCount:imageCount,onBusy:value=>{if(valid(token)){if(imagesBusy!==value)invalidateSync();imagesBusy=value;render();}},
-			noteSaving:()=>saving||restoring,hasTarget:()=>!!state.selectedTarget,
+			noteSaving:()=>initializing||!draftReadable||saving||restoring,hasTarget:()=>!!state.selectedTarget,
 			chooseTarget:()=>{el.picker.hidden=false;el.settings.hidden=true;message(t('请先选择保存分类','Choose a collection first'),'error');},
 			reload:async()=>{if(valid(token))await refresh(true);if(valid(token))await pendingImages();},message,
 			isExcluded:id=>flow?.excluded.has(id),onRemove:r=>flow.remove(r),onOpen:r=>{if(flow?.linking){flow.attach(r);return true;}return false;},
 			links:r=>flow?flow.associated(r):[],onLink:r=>flow.attach(r),onUnlink:(entry,r)=>flow.unlink(entry,r.id),heading:r=>flow?flow.caption(r):r.caption,
 			imageName:r=>flow?flow.imageName(r):r.caption,onRename:(r,name)=>flow.rename(r,name)
 		});
-		flow=new Zotero.PaperLoopFlow(shadow,el.editor,{locked:()=>saving||imagesBusy||restoring,editLocked:()=>(saving&&!autoSaving)||imagesBusy||restoring,gallery:()=>gallery,changed,refreshGallery:()=>{gallery.setPending(gallery.rawPending||[]);gallery.setSaved(allImages());flow.update();},message});
+		flow=new Zotero.PaperLoopFlow(shadow,el.editor,{locked:()=>initializing||!draftReadable||saving||imagesBusy||restoring,editLocked:()=>initializing||!draftReadable||(saving&&!autoSaving)||imagesBusy||restoring,gallery:()=>gallery,changed,refreshGallery:()=>{gallery.setPending(gallery.rawPending||[]);gallery.setSaved(allImages());flow.update();},message});
 		for(const [key,theme] of Object.entries(Zotero.PaperLoopThemes.palettes))if(![...el.theme.options].some(o=>o.value===key)){const option=document.createElement('option');option.value=key;option.textContent=theme.name;el.theme.append(option);}
 		const utility=document.createElement('div');utility.className='panel-tools';utility.innerHTML='<div role="group" aria-label="面板大小"><button type="button" class="panel-smaller" aria-label="缩小面板">−</button><span class="panel-size">窗口</span><button type="button" class="panel-larger" aria-label="放大面板">＋</button><button type="button" class="panel-fit">适应</button></div><div><button type="button" class="image-import">添加图片</button><button type="button" class="backup-open">备份</button></div><input type="file" class="image-files" accept="image/png,image/jpeg,image/gif,image/webp" multiple hidden>';
 		shadow.querySelector('.context').after(utility);
@@ -435,7 +515,7 @@ Zotero.PaperLoopSidebar = new function () {
 		const bind=(name,fn)=>shadow.querySelector('.'+name).addEventListener('click',fn);
 		bind('more',()=>{el.settings.hidden=!el.settings.hidden;el.picker.hidden=true;});
 		bind('theme-toggle',()=>{el.settings.hidden=!el.settings.hidden;el.picker.hidden=true;if(!el.settings.hidden)el.theme.focus();});
-		for(const name of ['theme','mode','art'])el[name].onchange=()=>{appearance[name]=el[name].value;render();persistGeometry();};
+		for(const name of ['theme','mode','art','minimizeMode','pet'])el[name].onchange=()=>{appearance[name]=el[name].value;render();geometry();persistGeometry();};
 		bind('target',()=>{el.picker.hidden=!el.picker.hidden;el.settings.hidden=true;if(!el.picker.hidden){loadTargets();el.query.focus();}});
 		bind('close',()=>{dismissedDocumentKey=state.documentKey;api.paperLoopSetPinned(false).catch(Zotero.logError);sidebar.close();});
 		bind('minimize',()=>setMinimized(true));bind('save',()=>sidebar.save());bind('remote',()=>loadRemote().catch(e=>message(errorText(e),'error')));
@@ -453,7 +533,10 @@ Zotero.PaperLoopSidebar = new function () {
 		el.editor.oninput=changed;
 		el.editor.addEventListener('compositionstart',()=>{composing=true;clearTimeout(autoSaveTimer);});
 		el.editor.addEventListener('compositionend',()=>{composing=false;changed();});
-		el.editor.onpaste=e=>{e.preventDefault();const files=[...(e.clipboardData?.files||[])];if(files.length){importFiles(files).catch(err=>message(errorText(err),'error'));return;}const value=e.clipboardData?.getData('text/plain');if(value)document.execCommand('insertText',false,value);};
+		// The IME commits on blur, but compositionend is not guaranteed (e.g. the
+		// editor is locked mid-composition). A stuck flag blocks all saving.
+		el.editor.addEventListener('blur',()=>{if(composing){composing=false;changed();}});
+		el.editor.onpaste=e=>{e.preventDefault();if(initializing||!draftReadable)return;const files=[...(e.clipboardData?.files||[])];if(files.length){importFiles(files).catch(err=>message(errorText(err),'error'));return;}const value=e.clipboardData?.getData('text/plain');if(value)document.execCommand('insertText',false,value);};
 		el.panel.addEventListener('dragover',e=>{if(e.dataTransfer?.types.includes('Files'))e.preventDefault();});
 		el.panel.addEventListener('drop',e=>{e.preventDefault();const files=e.dataTransfer?.files;if(files?.length)importFiles(files).catch(err=>message(errorText(err),'error'));});
 		el.editor.onclick=e=>{
@@ -467,30 +550,68 @@ Zotero.PaperLoopSidebar = new function () {
 		drag(el.bar,'move');drag(el.resize,'resize');drag(el.mini,'mini');
 		(document.body||document.documentElement).append(host);window.addEventListener('resize',geometry);
 	}
+	// Drafts, staged images and backups are stored per address. When the same
+	// article only changes its address, move them along instead of showing an
+	// empty notebook (the old draft would otherwise look lost).
+	async function carryDraft(from, to) {
+		const stored=await browser.storage.local.get(null),copy={};
+		const identity=row=>JSON.stringify([row.html,row.baseHTML,row.libraryID,row.targetID,row.removedImages,row.imageNames]);
+		for(const [key,value] of Object.entries(stored)){
+			const draftKey=key===DRAFT+from||(key.startsWith('paperloop:notebookDraft:v2:')&&key.endsWith(':'+from));
+			const recoveryKey=['paperloop:recovery:v1:','paperloop:conflicts:v1:'].some(prefix=>key===prefix+from);
+			if(!draftKey&&!recoveryKey)continue;
+			const targetKey=key.slice(0,-from.length)+to,existing=stored[targetKey];
+			if(draftKey&&existing&&identity(existing)!==identity(value))throw new Error(t('新地址已有另一份草稿，已保留两边内容，未自动覆盖','The new address has another draft. Both versions were kept; nothing was overwritten.'));
+			if(!existing)copy[targetKey]=value;
+		}
+		if(Object.keys(copy).length)await browser.storage.local.set(copy);
+		await api.paperLoopNotebook({action:'rekey',fromKey:from,documentKey:to});
+	}
+	// Called when the page address no longer matches the notebook. The
+	// background republishes on most route changes; this covers the rest
+	// (e.g. auto-open disabled), which otherwise fail with "page switched".
+	async function followURL() {
+		if(!host||!state||currentKey()===state.documentKey)return false;
+		if(initializing||saving||imagesBusy||importing||restoring)return false;
+		const {title,translatorLabel,translatorName,autoDisplayCategories,pageCategory,canSave,minimized}=state;
+		await sidebar.show({title:document.title||title,translatorLabel,translatorName,autoDisplayCategories,pageCategory,canSave,minimized,view:activeView,documentKey:currentKey()});
+		return !!host&&state.documentKey===currentKey();
+	}
 	this.show = function (props={}) {
 		showQueue=showQueue.catch(()=>{}).then(async()=>{
 			await preferences();
 			const key=props.documentKey||currentKey();
 			if(host&&state.documentKey===key){const minimized=state.minimized;state={...state,...props,minimized};render();return {open:true};}
-			if(host){await persist().catch(()=>{});this.close();}
-			const token=++generation;state={...props,documentKey:key,open:true,minimized:!!props.minimized};
-			baseHTML='';dirty=false;saving=false;imagesBusy=false;importing=false;reviewRestore=false;restoring=false;pendingCount=0;savedImageCount=0;remoteConflict=null;targets=[];create();loadHTML(EMPTY);render();geometry();setView(props.view||'notes');
+			if(host){
+				const from=state.documentKey,carry=sameDocument(from,key)&&state.fingerprint===fingerprint();
+				try{await persist();if(carry)await carryDraft(from,key);}
+				catch(e){message(t('地址更新未完成，原草稿仍保留：','Address update paused; the original draft is kept: ')+errorText(e),'error');return {open:true,migrationFailed:true};}
+				if(key!==currentKey())return {open:true,stale:true};
+				this.close();
+			}
+			const token=++generation;state={...props,documentKey:key,open:true,minimized:!!props.minimized,fingerprint:fingerprint()};
+			baseHTML='';dirty=false;saving=false;imagesBusy=false;importing=false;reviewRestore=false;restoring=false;initializing=true;draftReadable=true;pendingCount=0;savedImageCount=0;remoteConflict=null;targets=[];create();loadHTML(EMPTY);render();geometry();setView(props.view||'notes');
 			message(t('正在连接 Zotero…','Connecting to Zotero…'));
+			try {
 			try {
 				const keyNew=DRAFT+key,keyOld='paperloop:draft:v1:'+key.slice(0,1800),keySync='paperloop:sync:v1:'+key.slice(0,1800);
 				const stored=await browser.storage.local.get([keyNew,keyOld,keySync]);
 				if(!valid(token))return {open:false};
 				if(stored[keyNew]&&typeof stored[keyNew].html==='string'){
 					flow.restoreDraft(stored[keyNew].removedImages,stored[keyNew].imageNames);loadHTML(stored[keyNew].html);baseHTML=stored[keyNew].baseHTML||'';dirty=!!stored[keyNew].dirty;reviewRestore=!!stored[keyNew].reviewRestore;
+					state.draftLibraryID=stored[keyNew].libraryID;state.draftTargetID=stored[keyNew].targetID;
+					if(!state.draftLibraryID&&dirty)reviewRestore=true;
 				}else if(typeof stored[keyOld]==='string'&&stored[keyOld]){
 					loadHTML('<h1>PaperLoop 思考</h1><p>'+escape(stored[keyOld]).replace(/\n/g,'<br>')+'</p>');
 					dirty=!(stored[keySync]&&stored[keySync].syncedText===stored[keyOld]);
+					if(dirty)reviewRestore=true;
 				}
-			}catch(e){if(valid(token))message(t('无法读取本机草稿：','Could not read draft: ')+errorText(e),'error');}
+			}catch(e){if(valid(token)){draftReadable=false;message(t('无法读取本机草稿：','Could not read draft: ')+errorText(e),'error');}}
 			if(!valid(token))return {open:false};
 			await loadTargets();if(!valid(token))return {open:false};await pendingImages();
-			if(valid(token)){clearInterval(refreshTimer);refreshTimer=setInterval(()=>refresh(),5000);}
+			if(valid(token)){clearInterval(refreshTimer);refreshTimer=setInterval(tick,5000);}
 			return {open:!!host};
+			}finally{if(valid(token)){initializing=false;render();if(draftReadable){persist().catch(Zotero.logError);if(state.draftLibraryID&&!state.selectedTarget)message(t('草稿所属文库当前不可用，请确认保存分类；尚未写入其他文库','The draft library is unavailable. Confirm the destination; no other library was changed.'),'error');else if(reviewRestore)message(t('草稿已恢复，请确认分类后点击保存；尚未自动写入 Zotero','Draft recovered. Confirm the destination and save; automatic saving is paused.'));}else message(t('本机草稿未能读取，原草稿未被覆盖；请关闭并重新打开面板后继续编辑','Local draft could not be read and was not replaced. Close and reopen this panel before editing.'),'error');scheduleAutoSave();}}
 		});
 		return showQueue;
 	};
@@ -503,20 +624,44 @@ Zotero.PaperLoopSidebar = new function () {
 	this.close = () => {
 		if(host&&!saving&&!imagesBusy)gallery?.finishRename();
 		if(host)persist().catch(Zotero.logError);
-		generation++;invalidateSync();clearTimeout(draftTimer);clearTimeout(autoSaveTimer);clearInterval(refreshTimer);window.removeEventListener('resize',geometry);composing=false;autoSaving=false;
+		generation++;saveRun++;clearTimeout(saveWatchdog);kickSaveWatchdog=()=>{};invalidateSync();clearTimeout(draftTimer);clearTimeout(autoSaveTimer);clearInterval(refreshTimer);window.removeEventListener('resize',geometry);composing=false;autoSaving=false;
 		if(gallery)gallery.dispose();gallery=null;
 		if(flow)flow.dispose();flow=null;
-		if(host)host.remove();host=null;shadow=null;el={};state=null;saving=false;imagesBusy=false;return {open:false};
+		if(host)host.remove();host=null;shadow=null;el={};state=null;saving=false;imagesBusy=false;initializing=false;return {open:false};
 	};
 	this.status = () => ({open:!!host,minimized:!!(state&&state.minimized),documentKey:state&&state.documentKey});
 	this.save = async (options={}) => {
-		if(!host||saving||imagesBusy||importing||restoring||composing||!state.selectedTarget||remoteConflict)return;
+		if(host&&state&&!options.followed&&currentKey()!==state.documentKey){
+			// Save to the article actually shown, never to a stale address.
+			if(await followURL())return sidebar.save({...options,followed:true});
+			return;
+		}
+		if(host&&!options.automatic&&(composing||imagesBusy||importing||restoring)){
+			// Ctrl+S can reach here while the button is disabled; say why nothing happens.
+			message(composing?t('输入法仍在组字，确认文字后再保存','Finish the IME input, then save again.'):t('图片仍在处理，完成后再保存','Images are still being processed. Save again when they finish.'),'error');
+			return;
+		}
+		if(!host||initializing||!draftReadable||saving||imagesBusy||importing||restoring||composing||!state.selectedTarget||remoteConflict)return;
 		if(!gallery.finishRename())return;
 		clearTimeout(autoSaveTimer);
-		const token=generation;invalidateSync();saving=true;autoSaving=!!options.automatic;render();message(t('正在同步到 Zotero…','Syncing to Zotero…'));
+		const token=generation,run=++saveRun;invalidateSync();saving=true;autoSaving=!!options.automatic;render();message(t('正在同步到 Zotero…','Syncing to Zotero…'));
+		// A newer run (or the watchdog) supersedes this one; its late result is ignored.
+		const live=()=>valid(token)&&run===saveRun;
+		kickSaveWatchdog=()=>{
+			clearTimeout(saveWatchdog);
+			saveWatchdog=setTimeout(()=>{
+				if(!live())return;
+				saveRun++;pendingRead++;saving=false;autoSaving=false;invalidateSync();kickSaveWatchdog=()=>{};
+				// An image batch that stopped reporting would otherwise keep Save disabled.
+				if(gallery?.progressData&&!gallery.progressData.finished)gallery.progress({...gallery.progressData,finished:true});
+				render();
+				message(t('Zotero 长时间没有回应，已停止等待；后台可能仍在处理。请确认草稿状态后再保存','Zotero has not responded for a while; background processing may continue. Check the draft status before retrying.'),'error');
+			},SAVE_STALL_MS);
+		};
+		kickSaveWatchdog();
 		let completed=false;
 		const accept=async(result,sent,revision)=>{
-			if(!valid(token))return false;
+			if(!live())return false;
 			const local=serialize(),merge=revision===editRevision?{ok:true,html:result.noteHTML}:Zotero.PaperLoopSync.merge(clean(sent),clean(local),clean(result.noteHTML));
 			if(!merge.ok){remoteConflict={...result,status:'existing'};dirty=true;await persist();return false;}
 			// Typing during an automatic save belongs to the next revision, not the response.
@@ -524,37 +669,39 @@ Zotero.PaperLoopSidebar = new function () {
 			// loses the caret and the next keystroke can land in another paragraph.
 			if(!equivalent(local,merge.html))loadHTML(merge.html);
 			baseHTML=result.noteHTML;shellHTML=result.noteHTML;state.remote={...result,status:'existing'};remoteConflict=null;
-			dirty=!equivalent(serialize(),baseHTML)||flow.hasDraftChanges();await persist();return valid(token);
+			dirty=!equivalent(serialize(),baseHTML)||flow.hasDraftChanges();await persist();return live();
 		};
 		try {
-			await persist();if(!valid(token))return;
+			await persist();if(!live())return;
 			for(let attempt=0;attempt<3;attempt++){
+				if(!live())return;
 				try{
-					const remote=await api.paperLoopGetDocumentState(params());if(!valid(token))return;state.remote=remote;
+					const remote=await api.paperLoopGetDocumentState(params());if(!live())return;state.remote=remote;
 					if(remote.status==='existing'&&remote.noteHTML&&!reconcile(remote)){
 						message(t('同一处内容被两端修改，请选择保留哪一版；两版均会备份','Both sides edited the same content. Choose a version; both are backed up.'),'error');return;
 					}
 					const html=serialize(),revision=editRevision;
 					let result=await api.paperLoopNotebook(params({action:'save',noteHTML:html,baseHTML,includePendingImages:true,excludedImageIDs:flow.excludedIDs(),imageCaptions:flow.pendingNames()}));
 					if(!await accept(result,html,revision))return;
-					await pendingImages();if(!valid(token))return;
+					await pendingImages();if(!live())return;
 					// Persist image associations/presentation using the same protected endpoint.
 					const formatted=serialize(),formattedRevision=editRevision;
 					if(formatted!==comparable(baseHTML)){
 						const normalized=await api.paperLoopNotebook(params({action:'save',noteHTML:formatted,baseHTML,includePendingImages:false}));
 						if(!await accept(normalized,formatted,formattedRevision))return;result={...result,...normalized,images:result.images};
 					}
-					const excluded=flow.excludedIDs();if(excluded.length){const discarded=await api.paperLoopNotebook(params({action:'discard-images',ids:excluded}));if(!valid(token))return;flow.restoreDraft(discarded.failed.map(r=>r.id),flow.pendingNames());await pendingImages();}
-					if(!valid(token))return;
+					const excluded=flow.excludedIDs();if(excluded.length){const discarded=await api.paperLoopNotebook(params({action:'discard-images',ids:excluded}));if(!live())return;flow.restoreDraft(discarded.failed.map(r=>r.id),flow.pendingNames());await pendingImages();}
+					if(!live())return;
 					const failed=result.images&&result.images.failed.length||0;completed=!failed;if(completed)reviewRestore=false;
-					dirty=!equivalent(serialize(),baseHTML)||flow.hasDraftChanges();await persist();
-					message(failed?t(`文字已保存；${failed} 张图片未保存，已保留，可重试`,`Text saved; ${failed} images retained for retry.`):t('已与 Zotero 同步','Synced with Zotero'),failed?'error':'ready');break;
-				}catch(error){if(error.status!==409||attempt===2)throw error;}
+					dirty=!equivalent(serialize(),baseHTML)||flow.hasDraftChanges();await persist();if(!live())return;
+					const snapshotFailed=result.snapshot?.status==='failed';
+					message(failed?t(`文字已保存；${failed} 张图片未保存，已保留，可重试`,`Text saved; ${failed} images retained for retry.`):snapshotFailed?t(result.snapshot.message,'Notes saved; webpage snapshot failed. Save again to retry.'):t('已与 Zotero 同步','Synced with Zotero'),failed||snapshotFailed?'error':'ready');break;
+				}catch(error){if(!live())return;if(error.status!==409||attempt===2)throw error;}
 			}
-		}catch(e){if(valid(token)){message(errorText(e),'error');if(e.status===409){saving=false;invalidateSync();await refresh(true);}}}
-		finally{if(valid(token)){saving=false;autoSaving=false;invalidateSync();render();if(completed){reviewRestore=false;scheduleAutoSave();}}}
+		}catch(e){if(live()){message(saveErrorText(e),'error');if(e.status===409){saving=false;invalidateSync();await refresh(true);}}}
+		finally{if(run===saveRun){clearTimeout(saveWatchdog);kickSaveWatchdog=()=>{};}if(live()){saving=false;autoSaving=false;invalidateSync();render();if(completed){reviewRestore=false;scheduleAutoSave();}}}
 	};
-	this.debugState = () => host ? {open:true,documentKey:state.documentKey,minimized:!!state.minimized,thought:el.editor.innerText,noteHTML:serialize(),baseHTML,dirty,saving,font:appearance.font,theme:appearance.theme,mode:appearance.mode,art:appearance.art,themeImageLoaded:shadow.querySelector('.theme-photo').naturalWidth>0,excludedImages:flow?flow.excludedIDs():[],selectedTargetID:state.selectedTarget&&state.selectedTarget.targetID,status:el.status.textContent,draftStatus:el.draft.textContent,remoteConflict:!!remoteConflict,autoDisplaySettingsOpen:!el.settings.hidden,autoDisplayCategories:state.autoDisplayCategories,rectangle:host.getBoundingClientRect().toJSON(),images:allImages().length,pendingCount,activeView,selectedImages:gallery?[...gallery.selected]:[],imagesBusy} : {open:false};
+	this.debugState = () => host ? {open:true,documentKey:state.documentKey,minimized:!!state.minimized,thought:el.editor.innerText,noteHTML:serialize(),baseHTML,dirty,saving,initializing,font:appearance.font,theme:appearance.theme,mode:appearance.mode,art:appearance.art,themeImageLoaded:shadow.querySelector('.theme-photo').naturalWidth>0,excludedImages:flow?flow.excludedIDs():[],selectedImages:gallery?[...gallery.selected]:[],selectedTargetID:state.selectedTarget&&state.selectedTarget.targetID,status:el.status.textContent,draftStatus:el.draft.textContent,remoteConflict:!!remoteConflict,autoDisplaySettingsOpen:!el.settings.hidden,autoDisplayCategories:state.autoDisplayCategories,rectangle:host.getBoundingClientRect().toJSON(),images:allImages().length,pendingCount,activeView,imagesBusy} : {open:false};
 	this.debugSetThought = value => {el.editor.innerHTML='<p>'+escape(value).replace(/\n/g,'<br>')+'</p>';changed();};
 	this.debugClickClose = () => shadow.querySelector('.close').click();
 	this.debugClickMinimize = () => setMinimized(true);
@@ -579,7 +726,7 @@ Zotero.PaperLoopSidebar = new function () {
 				const token=generation;
 				if(messageData.batch)gallery.progress(messageData.batch);
 				// Do not remap pending UUIDs before the matching native images arrive.
-				if(saving){message(messageData.message,messageData.kind);return;}
+				if(saving){kickSaveWatchdog();message(messageData.message,messageData.kind);return;}
 				await pendingImages();if(!valid(token))return;
 				if(messageData.kind==='ready'||(messageData.batch&&messageData.batch.finished))await refresh(true);
 				if(valid(token))message(messageData.message,messageData.kind);

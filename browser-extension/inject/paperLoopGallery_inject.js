@@ -45,7 +45,15 @@ Zotero.PaperLoopGallery = class {
 	setPending(records){
 		if(this.dead)return;
 		this.rawPending=records;records=records.filter(r=>!this.options.isExcluded?.(r.id));
-		if(records.some(r=>r.status==='saving')&&!this.busy){this.busy=true;this.options.onBusy(true);}
+		// A record reported as 'saving' locks the gallery. Release that lock once
+		// a later list no longer reports it; nothing else would (e.g. the save ran
+		// in another tab, which sends no progress messages here).
+		const reportedSaving=records.some(r=>r.status==='saving');
+		if(reportedSaving&&!this.busy){this.busy=true;this.pendingBusy=true;this.options.onBusy(true);}
+		else if(!reportedSaving&&!this.localBusy&&(this.pendingBusy||this.progressData&&!this.progressData.finished)){
+			this.pendingBusy=false;this.busy=false;if(this.progressData)this.progressData={...this.progressData,finished:true};
+			if(this.el?.progress)this.el.progress.hidden=true;this.options.onBusy(false);
+		}
 		this.pending=records.map(r=>({...r,caption:this.options.imageName?.({...r,kind:'pending'})??r.caption,kind:'pending',key:'pending:'+r.id}));
 		const ids=new Set(records.map(r=>r.id));
 		for(const id of this.selected)if(!ids.has(id))this.selected.delete(id);
@@ -174,25 +182,25 @@ Zotero.PaperLoopGallery = class {
 		}catch(e){if(!this.dead&&this.previewToken===token)this.ve.message.textContent=e.message||this.t('无法预览此图片','Unable to preview this image');}
 	}
 	closeViewer(){this.previewToken=(this.previewToken||0)+1;this.viewer.hidden=true;this.viewer.classList.remove('expanded');this.ve.expand.setAttribute('aria-expanded','false');this.ve.image.removeAttribute('src');this.ve.download.removeAttribute('href');if(this.previousFocus&&this.previousFocus.isConnected)this.previousFocus.focus();}
-	progress(data){if(this.dead)return;this.progressData=data;this.busy=!data.finished;this.options.onBusy(this.busy);this.el.progress.hidden=!!data.finished;this.el['progress-fill'].style.width=Math.round(100*data.done/data.total)+'%';this.controls();}
+	progress(data){if(this.dead)return;this.progressData=data;this.pendingBusy=false;this.busy=!data.finished;this.options.onBusy(this.busy);this.el.progress.hidden=!!data.finished;this.el['progress-fill'].style.width=Math.round(100*data.done/data.total)+'%';this.controls();}
 	async save(){
 		if(this.dead||this.busy||!this.selected.size||this.options.noteSaving())return;
 		if(!this.options.hasTarget()){this.options.chooseTarget();return;}
-		const ids=[...this.selected];this.confirmRemoval=false;this.busy=true;this.options.onBusy(true);this.controls();
+		const ids=[...this.selected];this.confirmRemoval=false;this.localBusy=true;this.busy=true;this.options.onBusy(true);this.controls();
 		try{const result=await this.options.request({action:'save-images',ids,confirmCreate:true});if(this.dead)return;
 			await this.options.reload();if(this.dead)return;
 			this.options.message(this.t(`已保存 ${result.saved} 张${result.failed.length?`，${result.failed.length} 张未保存，可重试`:''}`,`Saved ${result.saved}; ${result.failed.length} failed.`),result.ok?'ready':'error');
 		}catch(e){if(!this.dead)this.options.message(e.message,'error');}
-		finally{if(!this.dead){this.busy=false;this.options.onBusy(false);this.el.progress.hidden=true;this.controls();}}
+		finally{if(!this.dead){this.localBusy=false;this.busy=false;this.options.onBusy(false);this.el.progress.hidden=true;this.controls();}}
 	}
 	async remove(){
 		if(this.dead||this.busy||this.options.noteSaving()||!this.selected.size)return;
 		if(!this.confirmRemoval){this.confirmRemoval=true;this.controls();return;}
-		this.busy=true;this.options.onBusy(true);this.controls();
+		this.localBusy=true;this.busy=true;this.options.onBusy(true);this.controls();
 		try{const result=await this.options.request({action:'discard-images',ids:[...this.selected]});if(this.dead)return;
 			await this.options.reload();if(!this.dead)this.options.message(this.t(`已移除 ${result.removed} 张暂存图片，不影响 Zotero 中的图片`,`Removed ${result.removed} staged images; Zotero images are unchanged.`),result.ok?'ready':'error');
 		}catch(e){if(!this.dead)this.options.message(e.message,'error');}
-		finally{if(!this.dead){this.busy=false;this.confirmRemoval=false;this.options.onBusy(false);this.controls();}}
+		finally{if(!this.dead){this.localBusy=false;this.busy=false;this.confirmRemoval=false;this.options.onBusy(false);this.controls();}}
 	}
 	dispose(){this.dead=true;clearTimeout(this.pointerTimer);for(const name of ['pointerup','pointercancel','blur'])window.removeEventListener(name,this.releasePointer,true);this.renameEditor=null;this.jobs=[];this.thumbnails.clear();this.previewToken=(this.previewToken||0)+1;this.viewer.remove();}
 };

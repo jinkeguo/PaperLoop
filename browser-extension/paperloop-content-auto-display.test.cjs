@@ -8,7 +8,7 @@ const pageSaving = fs.readFileSync(path.join(root, 'inject', 'pageSaving.js'), '
 const sidebar = fs.readFileSync(path.join(root, 'inject', 'paperLoopSidebar_inject.js'), 'utf8');
 const scripts = manifest.content_scripts[0].js;
 
-assert.equal(manifest.version, '0.3.35');
+assert.equal(manifest.version, '0.3.41');
 assert.ok(scripts.indexOf('inject/paperLoopFlow_inject.js')>0&&scripts.indexOf('inject/paperLoopFlow_inject.js')<scripts.indexOf('inject/paperLoopSidebar_inject.js'),'theme/layout helper must load before sidebar');
 const background=fs.readFileSync(path.join(root,'background.js'),'utf8');
 assert.ok(background.indexOf('"inject/paperLoopFlow_inject.js"')>0&&background.indexOf('"inject/paperLoopFlow_inject.js"')<background.indexOf('"inject/paperLoopSidebar_inject.js"'),'reinjection/reload must load the helper too');
@@ -16,7 +16,7 @@ assert.ok(scripts.includes('paperloop-auto-display-policy.js'),
 	'content scripts must load the shared auto-display policy');
 assert.ok(scripts.indexOf('paperloop-auto-display-policy.js') < scripts.indexOf('inject/pageSaving.js'),
 	'policy must be available before PageSaving runs detection');
-assert.match(pageSaving, /await this\._paperLoopAutoDisplay\(translators\)/,
+assert.match(pageSaving, /await this\._paperLoopAutoDisplay\(translators(?:,\s*\w+)?\)/,
 	'detection completion must invoke the content-side fallback');
 assert.match(pageSaving, /classifyTabInfo\(\{[\s\S]*?translators,[\s\S]*?isPDF:[\s\S]*?url: window\.location\.href/,
 	'fallback must use the shared Translator/PDF classification');

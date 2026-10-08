@@ -64,7 +64,8 @@ async function scenario({label='ScienceDirect', doi=true, existing=false, oldSes
     _paperLoopSavesInFlight:new Map(),_paperLoopDocumentKey:tab=>tab.url,
     _paperLoopReadCollections:async()=>({targets:[{targetID:'C7',libraryID:1}]}),
     _paperLoopReadLink:async()=>link,_paperLoopWriteLink:async(key,value)=>{link=value;},
-    _paperLoopNoteHTML:()=>'<h1>PaperLoop 思考</h1>',_paperLoopIsMissingItemError:()=>false
+    _paperLoopNoteHTML:()=>'<h1>PaperLoop 思考</h1>',_paperLoopIsMissingItemError:()=>false,
+    _paperLoopSupplementSnapshot:async()=>undefined
   });
   for(const filename of ['translateWeb.js','itemSaver.js','inject/pageSaving.js'])vm.runInContext(read(filename),ctx,{filename});
   Z.PageSaving._initTranslate=async()=>fakeTranslate;

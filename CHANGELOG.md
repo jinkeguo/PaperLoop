@@ -1,5 +1,12 @@
 # Changelog
 
+## PaperLoop 0.3.41 / Zotero 0.5.7 — 2026-10-08
+
+- 新主题与浏览器宠物；修复保存、网址变化后的草稿保留和操作卡住的问题。
+- New themes and browser companions; fixes for saving, draft retention after URL changes and stalled controls.
+
+[中英文说明 / Release notes](docs/releases/v0.3.41.md)
+
 ## PaperLoop 0.3.35 / Zotero 0.5.5 — 2026-09-29
 
 - 修复段落操作偶发无响应、按钮悬停变白，以及图片改名后下一次点击失效。

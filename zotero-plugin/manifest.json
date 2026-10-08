@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "PaperLoop for Zotero",
-  "version": "0.5.5",
+  "version": "0.5.7",
   "description": "Collect papers, add editable PDF excerpts, mention other literature, and export relation data.",
   "homepage_url": "https://github.com/jinkeguo/PaperLoop",
   "applications": {

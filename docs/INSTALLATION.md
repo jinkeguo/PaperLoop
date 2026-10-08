@@ -2,13 +2,17 @@
 
 ## 中文
 
-当前版本：浏览器扩展 **0.3.35**，Zotero 插件 **0.5.5**。浏览器使用 Microsoft Edge 验证；Zotero 7–10 的实测版本见 [兼容性记录](COMPATIBILITY.md)。
+当前版本：浏览器扩展 **0.3.41**，Zotero 插件 **0.5.7**。浏览器使用 Microsoft Edge 验证；Zotero 7–10 的实测版本见 [兼容性记录](COMPATIBILITY.md)。
+
+主题与宠物：点击顶部主题名切换配色。在设置里选择“缩小后 → 浏览器宠物”，再点击标题栏的“−”，即可变成奶牛猫或柴犬。拖动宠物改变位置，单击或按 Enter 恢复笔记。可单独指定宠物，或改回“简洁书签”。系统启用“减少动态效果”时，宠物保持静止。宠物只在网页内显示，不会出现在 Windows 桌面或浏览器设置页。
+
+已安装 Zotero 插件 0.5.7 的用户，本次只需更新浏览器扩展。
 
 ### 首次安装
 
-1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.35) 下载完整分享包，或分别下载浏览器 ZIP 和 Zotero XPI。
-2. 打开 Zotero 的插件管理器，点击齿轮，选择“从文件安装插件”，安装 `PaperLoop-for-Zotero-0.5.5.xpi`，然后重启。
-3. 解压 `PaperLoop-Browser-Extension-0.3.35.zip`。如使用完整分享包，选择其中已解压的 `browser-extension` 文件夹。
+1. 从 [Release](https://github.com/jinkeguo/PaperLoop/releases/latest) 下载完整分享包，或使用本包中的浏览器扩展和 Zotero XPI。
+2. 打开 Zotero 的插件管理器，点击齿轮，选择“从文件安装插件”，安装 `PaperLoop-for-Zotero-0.5.7.xpi`，然后重启。
+3. 解压 `PaperLoop-Browser-Extension-0.3.41.zip`。如使用完整分享包，选择其中已解压的 `browser-extension` 文件夹。
 4. 在 Edge 的 `edge://extensions` 或 Chrome 的 `chrome://extensions` 开启开发者模式，选择“加载解压缩的扩展”，打开直接包含 `manifest.json` 的文件夹。
 5. 允许 PaperLoop 访问待用网页。若同时安装了官方 Zotero Connector，先停用其中一个，避免重复注入。
 
@@ -29,13 +33,17 @@
 
 ## English
 
-Current versions: browser extension **0.3.35**, Zotero plugin **0.5.5**. Browser checks use Microsoft Edge; see [compatibility coverage](COMPATIBILITY.md) for tested Zotero 7–10 versions.
+Current versions: browser extension **0.3.41**, Zotero plugin **0.5.7**. Browser checks use Microsoft Edge; see [compatibility coverage](COMPATIBILITY.md) for tested Zotero 7–10 versions.
+
+Themes and pets: click the theme name to change colors. In settings, select “When minimized → Browser pet”, then click the header's “−”. Drag the cat or Shiba to move it; click or press Enter to reopen your notes. Choose a pet independently or switch back to the bookmark ribbon. Pets stay still when the system requests reduced motion. They appear inside webpages, not on the Windows desktop or browser settings pages.
+
+If Zotero plugin 0.5.7 is already installed, only update the browser extension for this release.
 
 ### First installation
 
-1. Download the complete share package, or the browser ZIP and Zotero XPI separately, from the [release](https://github.com/jinkeguo/PaperLoop/releases/tag/v0.3.35).
-2. Open Zotero's Plugins manager, select “Install Plugin From File” from the gear menu, choose `PaperLoop-for-Zotero-0.5.5.xpi`, and restart Zotero.
-3. Extract `PaperLoop-Browser-Extension-0.3.35.zip`. If using the complete share package, select its already extracted `browser-extension` folder.
+1. Download the complete share package from the [latest release](https://github.com/jinkeguo/PaperLoop/releases/latest), or use the browser extension and Zotero XPI included in this package.
+2. Open Zotero's Plugins manager, select “Install Plugin From File” from the gear menu, choose `PaperLoop-for-Zotero-0.5.7.xpi`, and restart Zotero.
+3. Extract `PaperLoop-Browser-Extension-0.3.41.zip`. If using the complete share package, select its already extracted `browser-extension` folder.
 4. Enable developer mode at `edge://extensions` or `chrome://extensions`, select “Load unpacked,” and choose the folder containing `manifest.json`.
 5. Allow site access. If the official Zotero Connector is also installed, disable one of the two extensions to avoid duplicate injection.
 
